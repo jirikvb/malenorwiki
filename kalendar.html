@@ -1,0 +1,1156 @@
+<title>Kalendář Malenoru</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=Alegreya+Sans+SC:wght@500;700&display=swap">
+<style>
+/* Layout: almanach v jednom sloupci; na širokém displeji vlevo datum a údaje, vpravo noční obloha s dvojčaty. */
+:root{
+  --bg:#e9e4d3;          /* velín, mírně do zelena */
+  --surface:#f3efe2;
+  --ink:#1c2230;         /* inkoust, modročerný */
+  --muted:#5b6070;
+  --rule:#c9c1a8;
+  --accent:#2c6a60;      /* zoxidovaná měď */
+  --accent-ink:#f3efe2;
+  --gold:#9a7424;        /* svátky */
+  --sky:#141a2b;         /* obloha je noční v obou motivech */
+  --sky-ink:#d9d3c0;
+  --sky-line:#d9d3c055;
+  --sky-accent:#a9d2c6;
+  --sel:#2c6a6022;
+  --pd-night:#36425e;--pd-dawn:#c9986a;--pd-morn:#d8c592;--pd-noon:#c3962c;--pd-aft:#9db188;--pd-dusk:#a2646b;
+  --font-display:"Cormorant Garamond","Cormorant",Garamond,"Times New Roman",serif;
+  --font-body:"Alegreya",Georgia,"Times New Roman",serif;
+  --font-label:"Alegreya Sans SC","Alegreya Sans","Gill Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
+    --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--sky:#0a0d16;--sky-ink:#d9d3c0;--sel:#7cc0b025;
+    --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
+  --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--sky:#0a0d16;--sky-ink:#d9d3c0;--sel:#7cc0b025;
+  --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:17px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px 48px;
+}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-direction:column;gap:4px}
+.eyebrow{font-family:var(--font-label);font-size:13px;letter-spacing:.12em;color:var(--muted);text-transform:lowercase}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(2.1rem,6vw,3.2rem);line-height:1;margin:0;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:600;font-size:1.55rem;line-height:1.1;margin:0;text-wrap:balance}
+.lede{margin:6px 0 0;color:var(--muted);max-width:60ch}
+
+.grid{display:grid;grid-template-columns:1fr;gap:28px;align-items:start}
+@media (min-width:860px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:22px;min-width:0}
+
+/* ovládání */
+.controls{display:flex;flex-direction:column;gap:14px;padding:16px;background:var(--surface);border:1px solid var(--rule);border-radius:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label,.lbl{font-family:var(--font-label);font-size:13px;letter-spacing:.08em;color:var(--muted)}
+input,select,button{font:inherit;color:inherit}
+input[type=number],select{
+  background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:7px 9px;font-size:16px;
+  font-variant-numeric:tabular-nums;min-width:0
+}
+#year{width:7.5em}
+#month{width:9.5em}
+#day{width:4.6em}
+#shiftN{width:5.5em}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.seg button{background:var(--bg);border:0;padding:7px 11px;font-size:15px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.btn{background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:7px 11px;font-size:15px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* výsledek */
+.date-line{display:flex;flex-direction:column;gap:2px}
+.date-big{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,7vw,2.9rem);line-height:1.05;text-wrap:balance}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-family:var(--font-label);font-size:12.5px;letter-spacing:.06em;padding:2px 9px;border-radius:999px;border:1px solid var(--rule);color:var(--muted)}
+.chip.gold{border-color:var(--gold);color:var(--gold)}
+.chip.acc{border-color:var(--accent);color:var(--accent)}
+.facts{display:flex;flex-direction:column;margin:0;border-top:1px solid var(--rule)}
+.fact{display:grid;grid-template-columns:8.5em minmax(0,1fr);gap:12px;padding:9px 0;border-bottom:1px solid var(--rule)}
+.fact dt{font-family:var(--font-label);font-size:13px;letter-spacing:.08em;color:var(--muted);padding-top:3px}
+.fact dd{margin:0;min-width:0}
+.fact dd small{display:block;color:var(--muted);font-size:15px}
+.fact.holiday dd{color:var(--gold)}
+@media (max-width:420px){.fact{grid-template-columns:1fr;gap:0}}
+
+/* měsíční pohled */
+.month{display:flex;flex-direction:column;gap:10px}
+.month-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.month-head small{color:var(--muted)}
+.dekan{display:grid;grid-template-columns:2.2em repeat(10,minmax(0,1fr));gap:3px;align-items:stretch}
+.dekan .dk{font-family:var(--font-label);font-size:12px;color:var(--muted);display:flex;align-items:center;letter-spacing:.04em}
+.day{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0 6px;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;cursor:pointer;min-width:0;
+  font-variant-numeric:tabular-nums;font-size:14px
+}
+.day:hover{border-color:var(--accent)}
+.day[aria-current="date"]{background:var(--sel);border-color:var(--accent);font-weight:700}
+.day .hd{position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--gold)}
+.day svg{display:block}
+.ds-day{align-self:flex-start;display:inline-flex;gap:8px;align-items:center;background:var(--surface);border:1px dashed var(--gold);color:var(--gold);border-radius:4px;padding:5px 10px;cursor:pointer;font-size:15px}
+.ds-day[aria-current="date"]{background:var(--sel);font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:14px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block}
+
+/* obloha */
+.sky{background:var(--sky);color:var(--sky-ink);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.sky canvas{width:100%;max-width:440px;aspect-ratio:1/1;align-self:center;display:block}
+.sky-caption{display:flex;flex-direction:column;gap:2px;text-align:center}
+.sky-caption strong{font-family:var(--font-display);font-size:1.45rem;font-weight:600;line-height:1.1}
+.sky-caption span{font-size:15px;opacity:.82}
+.sky-note{font-size:13.5px;opacity:.7;text-align:center;margin:0;max-width:52ch;align-self:center}
+.sky-controls{display:flex;flex-direction:column;gap:8px;width:100%;max-width:440px;align-self:center}
+.sky-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sky-row label{font-family:var(--font-label);font-size:13px;letter-spacing:.08em;opacity:.85}
+.sky-row output{font-variant-numeric:tabular-nums;font-size:15px}
+.sky input[type=range]{width:100%;accent-color:var(--sky-accent)}
+.sky-btn{background:transparent;color:var(--sky-ink);border:1px solid var(--sky-line);border-radius:4px;padding:6px 12px;font-size:15px;cursor:pointer}
+.sky-btn[aria-pressed="true"]{background:var(--sky-accent);color:var(--sky);border-color:var(--sky-accent)}
+.chk{display:inline-flex;gap:6px;align-items:center;font-family:var(--font-body)!important;letter-spacing:0!important;font-size:15px!important;cursor:pointer}
+.sky-loading{font-size:14px;opacity:.75;text-align:center}
+
+/* svátky roku */
+.feasts{display:flex;flex-direction:column;gap:14px}
+.feast-group{display:flex;flex-direction:column;gap:2px}
+.feast-group h3{font-family:var(--font-label);font-size:13px;letter-spacing:.1em;color:var(--muted);margin:0 0 2px;font-weight:500}
+.feast{display:flex;gap:10px;align-items:baseline;background:none;border:0;padding:3px 0;text-align:left;cursor:pointer;width:100%}
+.feast b{font-variant-numeric:tabular-nums;min-width:5.6em;color:var(--gold);font-weight:500}
+.feast span{min-width:0}
+.feast:hover span{text-decoration:underline;text-underline-offset:3px}
+@media (min-width:640px){.feasts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 28px}}
+
+/* časinka */
+.clocks{display:flex;flex-wrap:wrap;gap:18px 28px;align-items:flex-start}
+.clock{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1 1 180px;min-width:0;max-width:260px}
+.clock svg{width:100%;max-width:230px;height:auto;display:block}
+.clock h3{font-family:var(--font-label);font-size:13px;letter-spacing:.1em;color:var(--muted);margin:0;font-weight:500}
+.digital{font-family:var(--font-display);font-weight:700;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.digital-sub{font-size:14.5px;color:var(--muted);text-align:center}
+.part{color:var(--gold)}
+.clock-tools{display:flex;flex-direction:column;gap:12px;flex:1 1 260px;min-width:0}
+.clock-tools .row{align-items:end}
+.k-in{width:4.4em}
+input[type=time]{background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:6px 8px;font-size:16px;font-variant-numeric:tabular-nums}
+.dur{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+.dur p{margin:0;font-size:14.5px;color:var(--muted)}
+.eq{font-family:var(--font-display);font-size:1.4rem;align-self:center;padding-bottom:4px}
+.rules{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:15.5px;max-width:70ch}
+.rules ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:3px}
+section{display:flex;flex-direction:column;gap:12px}
+hr{border:0;border-top:1px solid var(--rule);margin:0;width:100%}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">MalenorWiki · ukázka převodníku</span>
+    <h1>Kalendář Malenoru</h1>
+    <p class="lede">Zadej datum korinského letopočtu. Převodník ukáže roční období, dekan, svátek, fázi dvojčat i to, kdy přijde další Den stínů.</p>
+  </header>
+
+  <section aria-labelledby="clockTitle">
+    <div class="month-head">
+      <h2 id="clockTitle">Časinka</h2>
+      <div class="seg" role="group" aria-label="Režim hodin">
+        <button type="button" id="modeNow" aria-pressed="true">Teď</button>
+        <button type="button" id="modeCustom" aria-pressed="false">Vlastní čas</button>
+      </div>
+    </div>
+    <div class="clocks">
+      <div class="clock">
+        <h3>Země</h3>
+        <svg id="earthDial" viewBox="0 0 200 200" role="img" aria-label="Pozemské hodiny"></svg>
+        <div class="digital" id="earthDigital">00:00:00</div>
+        <div class="digital-sub">hodiny : minuty : sekundy</div>
+      </div>
+      <div class="clock">
+        <h3>Malenor</h3>
+        <svg id="malDial" viewBox="0 0 200 200" role="img" aria-label="Malenorská časinka"></svg>
+        <div class="digital" id="malDigital">00:00:00</div>
+        <div class="digital-sub">krok : dech : tep · <span class="part" id="malPart">Stín</span></div>
+      </div>
+      <div class="clock-tools">
+        <div class="row">
+          <div class="field">
+            <label for="earthTime">Čas na Zemi</label>
+            <input type="time" id="earthTime" step="1" value="12:00:00">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="mK">Krok</label><input type="number" class="k-in" id="mK" min="0" max="29" value="15"></div>
+          <div class="field"><label for="mD">Dech</label><input type="number" class="k-in" id="mD" min="0" max="99" value="0"></div>
+          <div class="field"><label for="mT">Tep</label><input type="number" class="k-in" id="mT" min="0" max="29" value="0"></div>
+        </div>
+        <div class="dur" role="group" aria-labelledby="durTitle">
+          <span class="lbl" id="durTitle">Převod délky</span>
+          <div class="row">
+            <div class="field"><label for="dH">Hodiny</label><input type="number" class="k-in" id="dH" min="0" value="8"></div>
+            <div class="field"><label for="dM">Minuty</label><input type="number" class="k-in" id="dM" min="0" max="59" value="0"></div>
+            <span class="eq" aria-hidden="true">=</span>
+            <div class="field"><label for="dK">Kroky</label><input type="number" class="k-in" id="dK" min="0"></div>
+            <div class="field"><label for="dD">Dechy</label><input type="number" class="k-in" id="dD" min="0" max="99"></div>
+            <div class="field"><label for="dT">Tepy</label><input type="number" class="k-in" id="dT" min="0" max="29"></div>
+          </div>
+          <p>Délka se převádí podle skutečného malenorského dne 25,05 h. Jeden tep trvá 1,002 s, dech 30 s a krok 50 min.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <div class="grid">
+    <div class="col">
+      <form class="controls" id="form" autocomplete="off">
+        <div class="row">
+          <div class="field">
+            <label for="year">Rok</label>
+            <input type="number" id="year" min="0" step="1" inputmode="numeric" value="422">
+          </div>
+          <div class="field">
+            <span class="lbl" id="eraLbl">Letopočet</span>
+            <div class="seg" role="group" aria-labelledby="eraLbl">
+              <button type="button" id="eraBefore" aria-pressed="false">př.v.v.</button>
+              <button type="button" id="eraAfter" aria-pressed="true">p.v.v.</button>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="month">Tvář</label>
+            <select id="month"></select>
+          </div>
+          <div class="field" id="dayField">
+            <label for="day">Den</label>
+            <select id="day"></select>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="prevD">‹ den</button>
+          <button type="button" class="btn" id="nextD">den ›</button>
+          <button type="button" class="btn" id="prevM">‹ tvář</button>
+          <button type="button" class="btn" id="nextM">tvář ›</button>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="shiftN">Posunout o dní</label>
+            <input type="number" id="shiftN" step="1" inputmode="numeric" value="45">
+          </div>
+          <button type="submit" class="btn primary" id="shiftGo">Posunout</button>
+          <button type="button" class="btn" id="shiftBack">Zpět o tolik</button>
+        </div>
+      </form>
+
+      <section aria-labelledby="dateBig">
+        <div class="date-line">
+          <span class="eyebrow" id="weekLine"></span>
+          <div class="date-big" id="dateBig"></div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <dl class="facts" id="facts"></dl>
+      </section>
+
+      <section class="month" aria-labelledby="monthTitle">
+        <div class="month-head">
+          <h2 id="monthTitle"></h2>
+          <small id="monthSub"></small>
+        </div>
+        <button type="button" class="ds-day" id="dsDay" hidden>Den stínů · den trojčat</button>
+        <div id="dekans"></div>
+        <div class="legend">
+          <span><i></i> svátek</span>
+          <span>15. den úplněk a Dokonalý zákryt</span>
+          <span>30. a 1. den nov</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <div class="sky">
+        <canvas id="sky" width="440" height="440" role="img" aria-label="Poloha a fáze Garu a Rigu"></canvas>
+        <div class="sky-caption">
+          <strong id="skyTitle"></strong>
+          <span id="skySub"></span>
+        </div>
+        <div class="sky-controls">
+          <div class="sky-row">
+            <label for="cycle">Den cyklu</label>
+            <output id="cycleOut" for="cycle">1</output>
+          </div>
+          <input type="range" id="cycle" min="1" max="30" step="0.1" value="1">
+          <div class="sky-row">
+            <button type="button" class="sky-btn" id="play">Přehrát cyklus</button>
+            <label class="chk" for="labels"><input type="checkbox" id="labels"> Názvy oblastí</label>
+          </div>
+        </div>
+        <p class="sky-note">Povrch Garu vychází z mapy devíti oblastí z kalendářního chatu. Výšky jsou pro názornost zvětšené. Garus se otáčí jednou za rok, zprava doleva.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <section aria-labelledby="feastsTitle">
+    <h2 id="feastsTitle">Svátky roku</h2>
+    <div class="feasts" id="feasts"></div>
+  </section>
+
+  <section class="rules" aria-labelledby="rulesTitle">
+    <h2 id="rulesTitle">Podle čeho převodník počítá</h2>
+    <ul>
+      <li>Rok má 12 tváří po 30 dnech, tedy 360 dní. Tvář má 3 dekany po 10 dnech.</li>
+      <li>Rok 0 je rok konce Velké války. Před ním se počítá př.v.v., po něm p.v.v.</li>
+      <li>Den stínů stojí mimo kalendář mezi 30. Stařcem a 1. Jasem. Připadá na začátek každého roku dělitelného třemi, poprvé v roce 52 002 př.v.v., kdy Malenor zachytil Garus.</li>
+      <li>Roční období mají po 120 dnech a dělí se na třetiny po 40 dnech: kur, dan a lon.</li>
+      <li>Den má 30 kroků, krok 100 dechů a dech 30 tepů. Den trvá 25,05 pozemské hodiny, takže tep trvá 1,002 s. Den začíná o půlnoci, Pál je 15:00:00.</li>
+      <li>V režimu Teď se čas převádí úměrně: pozemská půlnoc odpovídá malenorské půlnoci a pozemské poledne Pálu.</li>
+      <li>Cyklus dvojčat trvá přesně dvanáctinu roku. Proto je 15. den každé tváře úplněk a Dokonalý zákryt, na přelomu tváří je nov a Den stínů vždy připadne na nov.</li>
+    </ul>
+  </section>
+</div>
+
+<script type="text/plain" id="moonSrc">
+// MOON START
+// Model povrchu Garu podle mapy v2 (kalendářní chat) a jednoduchý renderer koule.
+const MoonModel = (() => {
+  const DEG = Math.PI / 180;
+  function hash(i, j, k, seed){
+    let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k, 1274126177) ^ Math.imul(seed, 1442695041);
+    h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function vnoise(x, y, z, seed){
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const xf = x - xi, yf = y - yi, zf = z - zi;
+    const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf), w = zf*zf*(3-2*zf);
+    const c000 = hash(xi,yi,zi,seed), c100 = hash(xi+1,yi,zi,seed), c010 = hash(xi,yi+1,zi,seed), c110 = hash(xi+1,yi+1,zi,seed);
+    const c001 = hash(xi,yi,zi+1,seed), c101 = hash(xi+1,yi,zi+1,seed), c011 = hash(xi,yi+1,zi+1,seed), c111 = hash(xi+1,yi+1,zi+1,seed);
+    const x00 = c000 + (c100-c000)*u, x10 = c010 + (c110-c010)*u, x01 = c001 + (c101-c001)*u, x11 = c011 + (c111-c011)*u;
+    const y0 = x00 + (x10-x00)*v, y1 = x01 + (x11-x01)*v;
+    return (y0 + (y1-y0)*w) * 2 - 1;
+  }
+  function fbm(x, y, z, oct, seed){
+    let s = 0, a = 0.5, f = 1;
+    for (let o = 0; o < oct; o++){ s += a * vnoise(x*f, y*f, z*f, seed + o*17); a *= 0.5; f *= 2.03; }
+    return s;
+  }
+  const sq = v => v*v;
+  const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t*t*(3-2*t); };
+  const wrapDeg = d => ((d + 540) % 360) - 180;
+  function rng(seed){ return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
+
+  function makeTexture(TW, TH, build){
+    const N = TW*TH;
+    const tex = {TW, TH, A: new Float32Array(N), H: new Float32Array(N), gE: new Float32Array(N), gN: new Float32Array(N),
+      vx: new Float32Array(N), vy: new Float32Array(N), vz: new Float32Array(N), lonD: new Float32Array(N), latD: new Float32Array(N)};
+    for (let j = 0; j < TH; j++){
+      const lat = (0.5 - (j + 0.5) / TH) * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
+      for (let i = 0; i < TW; i++){
+        const lon = (i + 0.5) / TW * 2 * Math.PI, k = j*TW + i;
+        tex.vx[k] = cl*Math.sin(lon); tex.vy[k] = sl; tex.vz[k] = cl*Math.cos(lon);
+        tex.lonD[k] = lon / DEG; tex.latD[k] = lat / DEG;
+      }
+    }
+    build(tex);
+    // gradienty výšky (na radián oblouku)
+    const dl = 2*Math.PI/TW, dt = Math.PI/TH, H = tex.H;
+    for (let j = 0; j < TH; j++){
+      const cl = Math.max(0.05, Math.cos((0.5 - (j + 0.5) / TH) * Math.PI));
+      const jn = Math.max(0, j-1), js = Math.min(TH-1, j+1);
+      for (let i = 0; i < TW; i++){
+        const ie = (i+1) % TW, iw = (i-1+TW) % TW, k = j*TW + i;
+        tex.gE[k] = (H[j*TW+ie] - H[j*TW+iw]) / (2*dl*cl);
+        tex.gN[k] = (H[jn*TW+i] - H[js*TW+i]) / ((js - jn) * dt);
+      }
+    }
+    return tex;
+  }
+
+  // razítko kráteru
+  function stamp(tex, lonD, latD, rD, o){
+    const {TW, TH, A, H, vx, vy, vz} = tex;
+    const lat = latD*DEG, lon = lonD*DEG, cx = Math.cos(lat)*Math.sin(lon), cy = Math.sin(lat), cz = Math.cos(lat)*Math.cos(lon);
+    const reach = rD * 1.9, r = rD*DEG;
+    const j0 = Math.max(0, Math.floor((90 - latD - reach) / 180 * TH)), j1 = Math.min(TH-1, Math.ceil((90 - latD + reach) / 180 * TH));
+    const cosl = Math.max(0.04, Math.cos(Math.min(89, Math.abs(latD) + reach) * DEG));
+    const span = Math.min(180, reach / cosl), i0 = Math.floor((lonD - span) / 360 * TW), i1 = Math.ceil((lonD + span) / 360 * TW);
+    const depth = o.depth ?? 0.0026*rD, rim = depth * (o.rim ?? 0.35);
+    for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++){
+      const i = ((ii % TW) + TW) % TW, k = j*TW + i;
+      const dot = vx[k]*cx + vy[k]*cy + vz[k]*cz, ang = Math.acos(Math.min(1, Math.max(-1, dot)));
+      const u = ang / r; if (u > 1.9) continue;
+      let h = 0;
+      if (u < 1) h -= depth * (1 - u*u);
+      h += rim * Math.exp(-sq((u - 1) / 0.17));
+      if (o.peak) h += depth * 0.35 * Math.exp(-sq(u / 0.14));
+      H[k] = H[k] * (u < 1 ? 0.3 + 0.7*u : 1) + h;
+      if (o.floor !== undefined && u < 0.9) A[k] = A[k] + (o.floor - A[k]) * sstep(0.9, 0.6, u);
+      if (o.ejecta) A[k] += o.ejecta * Math.exp(-sq((u - 1.05) / 0.45));
+    }
+  }
+
+  function buildGarus(tex){
+    const {TW, TH, A, H, vx, vy, vz, lonD, latD} = tex, N = TW*TH;
+    const D = new Float32Array(N);       // hustota kráterů
+    const reg = (k, c) => {              // eliptická oblast s rozostřeným okrajem
+      const dl = wrapDeg(lonD[k] - c[0]) / c[2], dt = (latD[k] - c[1]) / c[3];
+      return Math.sqrt(dl*dl + dt*dt);
+    };
+    const JAS = [5, 2.5, 40, 32.5], MORE = [52, 17, 9.5, 7], SOUT = [81, -17, 31, 25], VEZ = [148.5, 16.5, 28.5, 21.5],
+          STIN = [204, -4, 34, 28], POLE = [262.5, -2.5, 32.5, 35.5], STAREC = [310, -2.5, 30, 29.5];
+    const ZLOM = [[[212,23],[240,8],[265,-4],[290,-15],[307,-25]], [[268,-5],[283,14]]];
+    for (let k = 0; k < N; k++){
+      const x = vx[k], y = vy[k], z = vz[k];
+      const n1 = fbm(x*2.6, y*2.6, z*2.6, 4, 11), edge = fbm(x*5, y*5, z*5, 3, 23) * 0.34;
+      let a = 0.60 + 0.08*n1 + 0.035*fbm(x*11, y*11, z*11, 2, 31);
+      let h = 0.0022*fbm(x*5, y*5, z*5, 3, 41) + 0.0010*fbm(x*18, y*18, z*18, 2, 43);
+      let dens = 1;
+      // Klidné pláně Jasu
+      let m = 1 - sstep(0.7, 1.05, reg(k, JAS) + edge);
+      a += 0.07*m; h *= 1 - 0.65*m; dens *= 1 - 0.75*m;
+      // Údolí soutěsek
+      m = 1 - sstep(0.7, 1.05, reg(k, SOUT) + edge);
+      if (m > 0){
+        const rdg = 1 - Math.abs(fbm(x*6.5, y*9, z*6.5, 4, 53)), c = Math.pow(rdg, 11);
+        const rdg2 = 1 - Math.abs(fbm(x*13, y*16, z*13, 3, 57)), c2 = Math.pow(rdg2, 14);
+        h -= m*(0.016*c + 0.007*c2); a -= m*(0.10*c + 0.05*c2);
+      }
+      // Pohoří Věže
+      m = 1 - sstep(0.7, 1.05, reg(k, VEZ) + edge);
+      if (m > 0){
+        const r1 = Math.pow(1 - Math.abs(fbm(x*7, y*7, z*7, 5, 61)), 3);
+        h += m*0.008*r1; a += m*0.04*r1; dens *= 1 - 0.4*m;
+      }
+      // Moře stínů
+      m = 1 - sstep(0.72, 1.02, reg(k, STIN) + edge*1.2);
+      if (m > 0){ a = a + (0.105 + 0.025*n1 - a)*m; h = h + (-0.004 + 0.0004*n1 - h)*m; dens *= 1 - 0.8*m; }
+      // malé moře Nýnny
+      m = 1 - sstep(0.65, 1.05, reg(k, MORE) + edge*1.3);
+      if (m > 0){ a = a + (0.30 + 0.03*n1 - a)*m; h *= 1 - m; dens *= 1 - 0.7*m; }
+      // Pole kráterů
+      m = 1 - sstep(0.7, 1.05, reg(k, POLE) + edge);
+      dens *= 1 + 5*m;
+      // Vrásy Starce
+      m = 1 - sstep(0.7, 1.05, reg(k, STAREC) + edge);
+      if (m > 0){
+        const w = Math.pow(1 - Math.abs(fbm(x*13, y*3.8, z*13, 4, 71)), 6);
+        const w2 = Math.pow(1 - Math.abs(fbm(x*24, y*7, z*24, 3, 73)), 9);
+        h += m*(0.010*w - 0.006*w2); a += m*(-0.06 + 0.04*w - 0.05*w2);
+      }
+      // Velký zlom
+      const lo = lonD[k], la = latD[k];
+      if (lo > 200 && lo < 320 && la > -35 && la < 32){
+        let best = 99;
+        for (const path of ZLOM) for (let s = 0; s < path.length - 1; s++){
+          const [ax, ay] = path[s], [bx, by] = path[s+1];
+          const cl = Math.cos(la*DEG), px = (lo - ax)*cl, py = la - ay, qx = (bx - ax)*cl, qy = by - ay;
+          const t = Math.max(0, Math.min(1, (px*qx + py*qy) / (qx*qx + qy*qy)));
+          const dx = px - t*qx, dy = py - t*qy; best = Math.min(best, Math.sqrt(dx*dx + dy*dy));
+        }
+        best += 1.6*fbm(x*7, y*7, z*7, 3, 81);
+        const wid = 0.9 + 0.7*(fbm(x*3, y*3, z*3, 2, 83) + 0.5);
+        const tr = Math.exp(-sq(best / wid));
+        h += -0.012*tr + 0.003*Math.exp(-sq((best - 1.8*wid) / 0.8)); a -= 0.07*tr;
+      }
+      A[k] = a; H[k] = h; D[k] = dens;
+    }
+    // krátery
+    const R = rng(1234);
+    for (let c = 0; c < 2600; c++){
+      const zz = R()*2 - 1, ph = R()*360, latC = Math.asin(zz) / DEG, lonC = ph;
+      const rad = Math.min(4.2, 0.22 * Math.pow(R(), -0.62));
+      const i = Math.floor(lonC/360*TW) % TW, j = Math.min(TH-1, Math.floor((90 - latC)/180*TH));
+      if (R() > Math.min(1, 0.28 * D[j*TW + i])) continue;
+      const young = R() < 0.18;
+      stamp(tex, lonC, latC, rad, {depth: 0.0026*rad*(young ? 1.1 : 0.45 + 0.4*R()), peak: rad > 2.4, ejecta: young ? 0.10 : 0});
+    }
+    // pojmenované útvary
+    stamp(tex, 318, 4, 5.5, {depth: 0.019, rim: 0.4, peak: true, floor: 0.26});            // kráter Starce
+    stamp(tex, 108, 72, 4.5, {depth: 0.013, peak: true, ejecta: 0.22, floor: 0.7});         // Severní paprskový kráter
+    stamp(tex, 226, 20, 3.2, {depth: 0.006}); stamp(tex, 233, 12, 2.6, {depth: 0.005}); stamp(tex, 217, 25, 2.8, {depth: 0.005});
+    // paprsky severního kráteru
+    const c0 = {lat: 72*DEG, lon: 108*DEG}, cxv = Math.cos(c0.lat)*Math.sin(c0.lon), cyv = Math.sin(c0.lat), czv = Math.cos(c0.lat)*Math.cos(c0.lon);
+    const ex = [Math.cos(c0.lon), 0, -Math.sin(c0.lon)], nx = [-Math.sin(c0.lat)*Math.sin(c0.lon), Math.cos(c0.lat), -Math.sin(c0.lat)*Math.cos(c0.lon)];
+    const RR = rng(77), rays = Array.from({length: 11}, () => [RR()*2*Math.PI, 1.2 + RR()*1.6, 18 + RR()*30]);
+    for (let k = 0; k < N; k++){
+      if (latD[k] < 5) continue;
+      const dot = vx[k]*cxv + vy[k]*cyv + vz[k]*czv, ang = Math.acos(Math.min(1, Math.max(-1, dot))) / DEG;
+      if (ang < 4 || ang > 62) continue;
+      const dx = vx[k] - cxv, dy = vy[k] - cyv, dz = vz[k] - czv;
+      const th = Math.atan2(dx*ex[0] + dy*ex[1] + dz*ex[2], dx*nx[0] + dy*nx[1] + dz*nx[2]);
+      let s = 0;
+      for (const [t0, wdeg, len] of rays){
+        let d = Math.abs(th - t0); d = Math.min(d, 2*Math.PI - d);
+        const across = d * ang;                    // šířka paprsku ve stupních oblouku
+        s += Math.exp(-sq(across / (wdeg * (1 + ang/40)))) * Math.exp(-ang / len);
+      }
+      const brk = 0.5 + 0.5*sstep(-0.2, 0.35, fbm(vx[k]*14, vy[k]*14, vz[k]*14, 2, 91));
+      A[k] += 0.15 * Math.min(1.1, s) * brk * sstep(4, 7, ang);
+    }
+    // Pohoří Věže: hlavní vrchol ze světlé skály
+    for (let k = 0; k < N; k++){
+      const dl = wrapDeg(lonD[k] - 153) * Math.cos(latD[k]*DEG), dt = latD[k] - 17;
+      const d2 = dl*dl/(0.95*0.95) + dt*dt/(1.5*1.5);
+      if (d2 > 30) continue;
+      const g = Math.exp(-d2);
+      H[k] += 0.075*g + 0.008*Math.exp(-d2/6); A[k] += (0.84 - A[k]) * Math.min(1, g*1.2);
+    }
+    // světlý útvar v malém moři
+    for (let k = 0; k < N; k++){
+      const dl = wrapDeg(lonD[k] - 55) * Math.cos(latD[k]*DEG), dt = latD[k] - 20, d = Math.sqrt(dl*dl + dt*dt);
+      if (d > 4) continue;
+      const g = 1 - sstep(0.8, 1.6, d);
+      A[k] += (0.97 - A[k]) * g; H[k] += 0.0015*g;
+    }
+    for (let k = 0; k < N; k++) A[k] = Math.max(0.05, Math.min(1, A[k]));
+  }
+
+  function buildRigus(tex){
+    const {TW, TH, A, H, vx, vy, vz} = tex, N = TW*TH;
+    for (let k = 0; k < N; k++){
+      const x = vx[k], y = vy[k], z = vz[k], n = fbm(x*2.2, y*2.2, z*2.2, 4, 101);
+      let a = 0.53 + 0.08*n;
+      const mare = sstep(0.12, 0.3, fbm(x*1.6, y*1.6, z*1.6, 3, 107));
+      a -= 0.2*mare;
+      A[k] = a; H[k] = 0.003*fbm(x*6, y*6, z*6, 4, 109) - 0.002*mare;
+    }
+    const R = rng(55);
+    for (let c = 0; c < 500; c++){
+      const zz = R()*2 - 1, latC = Math.asin(zz) / DEG, lonC = R()*360, rad = Math.min(9, 0.6*Math.pow(R(), -0.6));
+      stamp(tex, lonC, latC, rad, {depth: 0.0018*rad, peak: rad > 5, ejecta: R() < 0.15 ? 0.1 : 0});
+    }
+    for (let k = 0; k < N; k++) A[k] = Math.max(0.05, Math.min(1, A[k]));
+  }
+
+  // bilineární vzorek
+  function sample(tex, arr, lon, lat){
+    const {TW, TH} = tex;
+    let u = (lon / (2*Math.PI)) * TW - 0.5; u = ((u % TW) + TW) % TW;
+    let v = (0.5 - lat / Math.PI) * TH - 0.5; v = Math.max(0, Math.min(TH - 1.001, v));
+    const i0 = Math.floor(u), j0 = Math.floor(v), fu = u - i0, fv = v - j0, i1 = (i0 + 1) % TW, j1 = j0 + 1 < TH ? j0 + 1 : j0;
+    const a = arr[j0*TW + i0], b = arr[j0*TW + i1], c = arr[j1*TW + i0], d = arr[j1*TW + i1];
+    return (a + (b - a)*fu) + ((c + (d - c)*fu) - (a + (b - a)*fu))*fv;
+  }
+  function heightAt(tex, lon, lat){
+    const {TW, TH} = tex;
+    let i = Math.floor((lon / (2*Math.PI)) * TW); i = ((i % TW) + TW) % TW;
+    const j = Math.max(0, Math.min(TH - 1, Math.floor((0.5 - lat / Math.PI) * TH)));
+    return tex.H[j*TW + i];
+  }
+
+  // vykreslí kouli do RGBA bufferu velikosti S×S
+  // L = směr ke Slunci v souřadnicích pohledu (x vpravo, y nahoru, z k pozorovateli)
+  function render(tex, S, rot, L, o){
+    const out = new Uint8ClampedArray(S*S*4), R = S/2;
+    const ambBase = o.ambient ?? 0.02, tint = o.tint || [1, 0.975, 0.92];
+    const bump = o.bump ?? 1, exag = o.exag ?? 1;
+    const C = o.caster; // {x,y,z,umbra,pen} v poloměrech tělesa
+    for (let py = 0; py < S; py++){
+      const y = 1 - (py + 0.5) / R;
+      for (let px = 0; px < S; px++){
+        const x = (px + 0.5) / R - 1, rr = x*x + y*y;
+        if (rr > 1.0) continue;
+        const z = Math.sqrt(1 - rr), dl = Math.atan2(x, z), lat = Math.asin(y), lon = rot + dl;
+        const A = sample(tex, tex.A, lon, lat);
+        const bz = bump * sstep(0.02, 0.4, z);
+        const gE = sample(tex, tex.gE, lon, lat) * bz, gN = sample(tex, tex.gN, lon, lat) * bz;
+        const cdl = Math.cos(dl), sdl = Math.sin(dl), cla = Math.cos(lat), sla = Math.sin(lat);
+        let nx = x - gE*cdl - gN*(-sla*sdl), ny = y - gN*cla, nz = z - gE*(-sdl) - gN*(-sla*cdl);
+        const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+        const mu0g = x*L[0] + y*L[1] + z*L[2];
+        let mu0 = Math.max(nx*L[0] + ny*L[1] + nz*L[2], 0.25*mu0g);
+        const mu = Math.max(0.08, nz);
+        let I = 0;
+        if (mu0 > 0 && mu0g > -0.12){
+          I = 0.78 * (2*mu0/(mu0 + mu)) + 0.22*1.5*mu0;
+          I *= sstep(-0.12, 0.04, mu0g);
+          // vržené stíny u terminátoru
+          if (o.cast && mu0g < 0.32 && nz > 0.12){
+            const h0 = sample(tex, tex.H, lon, lat) * exag + 0.0015;
+            const P0 = x*(1 + h0), P1 = y*(1 + h0), P2 = z*(1 + h0);
+            for (let s = 0; s < 36; s++){
+              const t = 0.006 + 0.0072*s;
+              const Q0 = P0 + t*L[0], Q1 = P1 + t*L[1], Q2 = P2 + t*L[2];
+              const q = Math.hypot(Q0, Q1, Q2);
+              if (q > 1.06) break;
+              const hs = sample(tex, tex.H, rot + Math.atan2(Q0, Q2), Math.asin(Q1 / q)) * exag;
+              if (q < 1 + hs){ I *= 0.12; break; }
+            }
+          }
+          // stín Riguse na Garu
+          if (C){
+            const wx = C.x - x, wy = C.y - y, wz = C.z - z, along = wx*L[0] + wy*L[1] + wz*L[2];
+            if (along > 0){
+              const perp = Math.sqrt(Math.max(0, wx*wx + wy*wy + wz*wz - along*along));
+              if (perp < C.umbra) I *= 0.06 + 0.94*sstep(C.umbra*0.75, C.umbra, perp) * 0.7;
+              else I *= 1 - 0.32*(1 - sstep(C.umbra, C.pen, perp));
+            }
+          }
+        }
+        I = A*I + A*ambBase;
+        const v = Math.pow(Math.max(0, I), 0.82) * 255;
+        const edge = Math.min(1, (1 - Math.sqrt(rr)) * R * 1.2);
+        const k = (py*S + px)*4;
+        out[k] = v*tint[0]; out[k+1] = v*tint[1]; out[k+2] = v*tint[2]; out[k+3] = 255*edge;
+      }
+    }
+    return out;
+  }
+
+  let garus = null, rigus = null;
+  return {
+    DEG,
+    ready: () => !!garus,
+    build(){
+      if (!garus) garus = makeTexture(1024, 512, buildGarus);
+      if (!rigus) rigus = makeTexture(256, 128, buildRigus);
+    },
+    // f: 0 nov, 0.5 úplněk; rotDeg: centrální poledník Garu
+    sunDir: f => [Math.sin(2*Math.PI*f), 0, -Math.cos(2*Math.PI*f)],
+    renderGarus: (S, rotDeg, L, caster, amb) => render(garus, S, rotDeg*DEG, L, {cast: true, caster, ambient: amb}),
+    renderRigus: (S, L, amb) => render(rigus, S, 0, L, {cast: false, ambient: amb, tint: [0.98, 0.96, 0.93]}),
+    FEATURES: [
+      ["Klidné pláně Jasu", 5, 5], ["Malé moře a světlý útvar", 53, 18], ["Údolí soutěsek", 82, -14],
+      ["Severní paprskový kráter", 108, 72], ["Pohoří Věže", 153, 17], ["Moře stínů", 203, -6],
+      ["Velký zlom", 248, 4], ["Pole kráterů", 262, -16], ["Vrásy Starce", 318, 4]
+    ]
+  };
+})();
+// MOON END
+
+</script>
+
+<script>
+// ENGINE START
+const CAPTURE = -52002;           // rok zachycení Garu, první Den stínů
+const MONTHS = [
+  ["Jas","začátek roku, tvář nových začátků"],
+  ["Nýnna","láska, rodina, plodnost"],
+  ["Juron","lov, odvaha, cestování"],
+  ["Tegal","práce, řemeslo, budování"],
+  ["Nuros","obchod, bohatství, moře"],
+  ["Věž","vrchol roku, moc, prosperita, velikost"],
+  ["Kala","magie, sny, tajemství"],
+  ["Rigis","síla, ambice, vláda"],
+  ["Regis","moudrost, tradice"],
+  ["Jukton","osud, změna, čas rozhodnutí"],
+  ["Deela","vzpomínky, smíření"],
+  ["Stařec","konec roku, úcta ke stáří, uzavření roku"]
+];
+const SEASONS = [
+  {name:"Mortuun", gloss:"Počátek", parts:["před počátek","vrcholný počátek","po počátek"]},
+  {name:"Satruun", gloss:"Sílení", parts:["před sílení","vrcholné sílení","po sílení"]},
+  {name:"Katruun", gloss:"Odpočinek", parts:["před odpočinek","vrcholný odpočinek","po odpočinek"]}
+];
+const THIRDS = ["kur","dan","lon"];
+const FEASTS = [
+  [0,1,"Den prvního paprsku","Nový rok, hlavní svátek Aurela"],
+  [1,20,"Den otevírání přístavů","svátek obchodníků a námořníků, den Silurny"],
+  [2,10,"Den cest","začátek obchodních a loveckých výprav"],
+  [2,29,"Tři dny darů · Den rodiny",""],
+  [2,30,"Tři dny darů · Den přátel",""],
+  [3,1,"Tři dny darů · Den cizinců",""],
+  [3,15,"Den Eiy","svátek života, léčení a obnovy"],
+  [3,30,"Den otevírání dílen","svátek Thary"],
+  [4,14,"Noc květů","svátek lásky, mládí a námluv, zasvěcen Eie"],
+  [5,30,"Den vysokého slunce","nejdelší den roku, vrchol Satruunu"],
+  [6,1,"Noc tisíce hvězd","svátek mágů, hvězdářů a učenců"],
+  [6,29,"Bouředení · 1. den","svátek Varga, začátek období bouří"],
+  [6,30,"Bouředení · 2. den","svátek Varga"],
+  [7,1,"Bouředení · 3. den","svátek Varga"],
+  [7,11,"Čas masek","den Vela"],
+  [8,2,"Den učenců a kronikářů","svátek historie a dějin"],
+  [9,18,"Den rozhodnutí","smlouvy, dědictví a soudy"],
+  [10,20,"Večer vzpomínek","Tichá noc, den Khadi"],
+  [11,13,"Tichá vigilie","den Ulgora"],
+  [11,30,"Poslední oheň","poslední den roku"]
+];
+const SHADOW_FEAST = ["Den stínů","den trojčat, Triarchové obnovují slib jednoty"];
+
+const mod = (a,n) => ((a % n) + n) % n;
+const hasShadow = y => y >= CAPTURE && mod(y,3) === 0;
+function leapsBefore(y){ return y <= CAPTURE ? 0 : Math.floor((y - 1 - CAPTURE) / 3) + 1; }
+function yearStart(y){ return 360 * (y - CAPTURE) + leapsBefore(y); }   // absolutní den začátku roku
+// datum: {y, m, d}; m = -1 znamená Den stínů
+function toAbs(t){
+  const s = yearStart(t.y);
+  if (t.m === -1) return s;
+  return s + (hasShadow(t.y) ? 1 : 0) + t.m * 30 + (t.d - 1);
+}
+function fromAbs(a){
+  let y = CAPTURE + Math.floor(a / (1081/3));
+  while (yearStart(y) > a) y--;
+  while (yearStart(y + 1) <= a) y++;
+  let r = a - yearStart(y);
+  if (hasShadow(y)){ if (r === 0) return {y, m:-1, d:0}; r -= 1; }
+  return {y, m: Math.floor(r / 30), d: (r % 30) + 1};
+}
+function describe(t){
+  const abs = toAbs(t);
+  const garus = abs >= 0;                       // Garus je na obloze od prvního Dne stínů
+  const isDS = t.m === -1;
+  const doy = isDS ? 0 : t.m * 30 + t.d;
+  const season = isDS ? null : Math.floor((doy - 1) / 120);
+  const third = isDS ? null : Math.floor(((doy - 1) % 120) / 40);
+  const f = isDS ? 0 : (t.d % 30) / 30;        // 0 nov, 0.5 úplněk
+  const illum = (1 - Math.cos(2 * Math.PI * f)) / 2;
+  const rot = mod((isDS ? 0 : t.m * 30 + t.d) - 15, 360);
+  let ny = t.y + 1; while (!(hasShadow(ny))) ny++;
+  if (ny < CAPTURE) ny = CAPTURE;
+  const nextDS = {y: ny, m: -1, d: 0};
+  const feasts = isDS ? [SHADOW_FEAST] : FEASTS.filter(x => x[0] === t.m && x[1] === t.d).map(x => [x[2], x[3]]);
+  return {abs, garus, isDS, doy, season, third, f, illum, rot, nextDS, daysToNext: toAbs(nextDS) - abs, feasts,
+    dekan: isDS ? null : Math.floor((t.d - 1) / 10) + 1, dayInDekan: isDS ? null : (t.d - 1) % 10 + 1};
+}
+function phaseName(t){
+  if (t.m === -1) return "Nov · zatmění Slunce";
+  const d = t.d;
+  if (d === 30 || d === 1) return "Nov";
+  if (d <= 6) return "Dorůstající srpek";
+  if (d <= 8) return "První čtvrť";
+  if (d <= 14) return "Dorůstající";
+  if (d === 15) return "Úplněk · Dokonalý zákryt";
+  if (d <= 21) return "Couvající";
+  if (d <= 23) return "Poslední čtvrť";
+  return "Couvající srpek";
+}
+function fmtNum(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+function fmtYear(y){ return y < 0 ? fmtNum(-y) + " př.v.v." : fmtNum(y) + " p.v.v."; }
+function fmtDate(t){ return t.m === -1 ? "Den stínů " + fmtYear(t.y) : t.d + ". " + MONTHS[t.m][0] + " " + fmtYear(t.y); }
+// ENGINE END
+
+// --- stav ---
+let cur = {y:422, m:0, d:1};
+try { const s = JSON.parse(localStorage.getItem("malenor-cal") || "null"); if (s && Number.isInteger(s.y)) cur = s; } catch(e){}
+
+const $ = id => document.getElementById(id);
+const yearIn = $("year"), monthIn = $("month"), dayIn = $("day");
+
+for (let d = 1; d <= 30; d++){ const o = document.createElement("option"); o.value = d; o.textContent = d; dayIn.append(o); }
+
+function setDate(t){
+  if (t.m === -1 && !hasShadow(t.y)) t = {y:t.y, m:0, d:1};
+  cur = t;
+  try { localStorage.setItem("malenor-cal", JSON.stringify(cur)); } catch(e){}
+  render();
+}
+function readForm(){
+  let n = parseInt(yearIn.value, 10); if (!Number.isFinite(n) || n < 0) n = 0;
+  const before = $("eraBefore").getAttribute("aria-pressed") === "true";
+  const y = before ? -n : n;
+  const m = parseInt(monthIn.value, 10);
+  return {y, m, d: m === -1 ? 0 : parseInt(dayIn.value, 10)};
+}
+yearIn.addEventListener("change", () => setDate(readForm()));
+monthIn.addEventListener("change", () => setDate(readForm()));
+dayIn.addEventListener("change", () => setDate(readForm()));
+$("eraBefore").addEventListener("click", () => { $("eraBefore").setAttribute("aria-pressed","true"); $("eraAfter").setAttribute("aria-pressed","false"); setDate(readForm()); });
+$("eraAfter").addEventListener("click", () => { $("eraAfter").setAttribute("aria-pressed","true"); $("eraBefore").setAttribute("aria-pressed","false"); setDate(readForm()); });
+const shift = n => setDate(fromAbs(toAbs(cur) + n));
+$("prevD").onclick = () => shift(-1);
+$("nextD").onclick = () => shift(1);
+function shiftMonth(k){
+  if (cur.m === -1){ setDate(k > 0 ? {y:cur.y, m:0, d:1} : {y:cur.y - 1, m:11, d:30}); return; }
+  let m = cur.m + k, y = cur.y;
+  if (m < 0){ m = 11; y--; } if (m > 11){ m = 0; y++; }
+  setDate({y, m, d:cur.d});
+}
+$("prevM").onclick = () => shiftMonth(-1);
+$("nextM").onclick = () => shiftMonth(1);
+$("form").addEventListener("submit", e => { e.preventDefault(); const n = parseInt($("shiftN").value,10); if (Number.isFinite(n)) shift(n); });
+$("shiftBack").onclick = () => { const n = parseInt($("shiftN").value,10); if (Number.isFinite(n)) shift(-n); };
+
+// --- fáze jako SVG cesta (osvětlená část kotouče) ---
+function litInterval(f, w){
+  const k = Math.cos(2 * Math.PI * f);
+  return f <= 0.5 ? [k * w, w] : [-w, -k * w];
+}
+function phaseSVG(f, r){
+  const pts = [], back = [];
+  for (let i = 0; i <= 16; i++){
+    const y = -r + (2 * r * i) / 16, w = Math.sqrt(Math.max(0, r * r - y * y));
+    const [lo, hi] = litInterval(f, w);
+    pts.push([hi, y]); back.push([lo, y]);
+  }
+  const all = pts.concat(back.reverse());
+  const d = "M" + all.map(p => (p[0] + r).toFixed(2) + " " + (p[1] + r).toFixed(2)).join("L") + "Z";
+  return `<svg width="${2*r}" height="${2*r}" viewBox="0 0 ${2*r} ${2*r}" aria-hidden="true"><circle cx="${r}" cy="${r}" r="${r-0.4}" fill="var(--rule)"/><path d="${d}" fill="var(--ink)" opacity=".78"/></svg>`;
+}
+
+// --- vykreslení stránky ---
+function render(){
+  const t = cur, info = describe(t);
+  // formulář
+  yearIn.value = Math.abs(t.y);
+  $("eraBefore").setAttribute("aria-pressed", t.y < 0 ? "true" : "false");
+  $("eraAfter").setAttribute("aria-pressed", t.y < 0 ? "false" : "true");
+  monthIn.innerHTML = (hasShadow(t.y) ? `<option value="-1">Den stínů</option>` : "") +
+    MONTHS.map((m,i) => `<option value="${i}">${i+1}. ${m[0]}</option>`).join("");
+  monthIn.value = t.m;
+  $("dayField").hidden = t.m === -1;
+  if (t.m !== -1) dayIn.value = t.d;
+
+  // datum
+  $("dateBig").textContent = fmtDate(t);
+  $("weekLine").textContent = t.y === 0 ? "rok konce Velké války" : (t.y < CAPTURE ? "před zachycením Garu" : (t.y < 0 ? "před Velkou válkou" : "věk rovnosti"));
+  const chips = [];
+  if (hasShadow(t.y)) chips.push(`<span class="chip acc">rok s Dnem stínů</span>`);
+  info.feasts.forEach(f => chips.push(`<span class="chip gold">${f[0]}</span>`));
+  $("chips").innerHTML = chips.join("");
+
+  const facts = [];
+  if (info.isDS){
+    facts.push(["Postavení", "Mimo kalendář", "mezi 30. Stařcem a 1. Jasem"]);
+  } else {
+    const s = SEASONS[info.season];
+    facts.push(["Roční období", `${s.name} – ${THIRDS[info.third]}`, `${s.gloss}, ${s.parts[info.third]}`]);
+    facts.push(["Dekan", `${info.dekan}. dekan, ${info.dayInDekan}. den`, `${info.doy}. den roku z 360`]);
+    facts.push(["Tvář Garu", MONTHS[t.m][0], MONTHS[t.m][1]]);
+  }
+  if (info.garus) facts.push(["Dvojčata", phaseName(t), `osvětleno ${Math.round(info.illum*100)} %`]);
+  else facts.push(["Dvojčata", "Garus ještě není na obloze", "zachycen bude v roce 52 002 př.v.v."]);
+  info.feasts.forEach(f => facts.push(["Svátek", f[0], f[1], true]));
+  const dn = info.daysToNext;
+  facts.push(["Příští Den stínů", `na začátku roku ${fmtYear(info.nextDS.y)}`, `za ${fmtNum(dn)} ${dn === 1 ? "den" : (dn < 5 ? "dny" : "dní")}`]);
+  $("facts").innerHTML = facts.map(f => `<div class="fact${f[3] ? " holiday" : ""}"><dt>${f[0]}</dt><dd>${f[1]}${f[2] ? `<small>${f[2]}</small>` : ""}</dd></div>`).join("");
+
+  // měsíční pohled
+  const mm = t.m === -1 ? 0 : t.m;
+  $("monthTitle").textContent = `${mm+1}. tvář · ${MONTHS[mm][0]}`;
+  $("monthSub").textContent = fmtYear(t.y);
+  const ds = $("dsDay");
+  ds.hidden = !(mm === 0 && hasShadow(t.y));
+  if (t.m === -1) ds.setAttribute("aria-current","date"); else ds.removeAttribute("aria-current");
+  ds.onclick = () => setDate({y:t.y, m:-1, d:0});
+  let html = "";
+  for (let k = 0; k < 3; k++){
+    html += `<div class="dekan" role="group" aria-label="${k+1}. dekan"><span class="dk">${k+1}.</span>`;
+    for (let i = 1; i <= 10; i++){
+      const d = k * 10 + i, fe = FEASTS.find(x => x[0] === mm && x[1] === d);
+      const sel = t.m === mm && t.d === d;
+      html += `<button type="button" class="day" data-d="${d}" ${sel ? 'aria-current="date"' : ""} aria-label="${d}. ${MONTHS[mm][0]}${fe ? ", " + fe[2] : ""}">${fe ? '<span class="hd"></span>' : ""}<span>${d}</span>${phaseSVG((d % 30)/30, 6)}</button>`;
+    }
+    html += `</div>`;
+  }
+  $("dekans").innerHTML = html;
+  $("dekans").querySelectorAll(".day").forEach(b => b.onclick = () => setDate({y:t.y, m:mm, d:+b.dataset.d}));
+
+  // obloha
+  if (!sky.dragging && !sky.playing) showDate();
+
+  // svátky roku: zvýraznit aktuální
+  document.querySelectorAll(".feast").forEach(b => b.style.fontWeight = (+b.dataset.m === t.m && +b.dataset.d === t.d) ? "700" : "");
+}
+
+// --- svátky roku ---
+(function buildFeasts(){
+  const groups = [[-1, "Mimo kalendář", [[-1,0,SHADOW_FEAST[0],"každý třetí rok"]]]];
+  MONTHS.forEach((m,i) => { const list = FEASTS.filter(f => f[0] === i); if (list.length) groups.push([i, `${i+1}. ${m[0]}`, list]); });
+  $("feasts").innerHTML = groups.map(g => `<div class="feast-group"><h3>${g[1]}</h3>${g[2].map(f =>
+    `<button type="button" class="feast" data-m="${f[0]}" data-d="${f[1]}"><b>${f[0] === -1 ? "Den stínů" : f[1] + ". " + MONTHS[f[0]][0]}</b><span>${f[2]}${f[3] ? " · " + f[3] : ""}</span></button>`).join("")}</div>`).join("");
+  $("feasts").querySelectorAll(".feast").forEach(b => b.onclick = () => {
+    const m = +b.dataset.m;
+    if (m === -1){ let y = cur.y; while (!hasShadow(y)) y++; setDate({y, m:-1, d:0}); }
+    else setDate({y:cur.y, m, d:+b.dataset.d});
+    window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  });
+})();
+
+// --- kresba oblohy ---
+function rng(seed){ return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
+const STARS = (() => { const r = rng(7); return Array.from({length:130}, () => [r(), r(), r()*1.1 + .2, r()*.6 + .25]); })();
+const sky = {dragging:false, playing:false, frame:null, busy:false, pending:null, ready:false, worker:null, local:null, seq:0, last:null};
+
+// výpočet modelu běží ve workeru, aby se stránka nezasekla
+(function startModel(){
+  const src = document.getElementById("moonSrc").textContent;
+  const handler = `
+    let built = false;
+    onmessage = e => {
+      const q = e.data;
+      if (q.type === "build"){ MoonModel.build(); built = true; postMessage({type:"ready"}); return; }
+      if (q.type === "render"){
+        const L = MoonModel.sunDir(q.f);
+        const out = {type:"frame", id:q.id, S:q.S, Sr:q.Sr, p:q.p};
+        const transfer = [];
+        if (q.garus){ out.g = MoonModel.renderGarus(q.S, q.rot, L, q.caster, q.amb); transfer.push(out.g.buffer); }
+        out.r = MoonModel.renderRigus(q.Sr, L, q.amb); transfer.push(out.r.buffer);
+        postMessage(out, transfer);
+      }
+    };`;
+  try {
+    const url = URL.createObjectURL(new Blob([src + handler], {type:"text/javascript"}));
+    const w = new Worker(url);
+    w.onmessage = e => onModelMessage(e.data);
+    w.onerror = () => { sky.worker = null; startLocal(src); };
+    sky.worker = w; w.postMessage({type:"build"});
+  } catch(e){ startLocal(src); }
+})();
+function startLocal(src){
+  try {
+    const M = new Function(src + "; return MoonModel;")();
+    sky.local = M;
+    setTimeout(() => { M.build(); onModelMessage({type:"ready"}); }, 60);
+  } catch(e){ $("skySub").textContent = "Model měsíců se nepodařilo spustit v tomto prohlížeči."; }
+}
+function onModelMessage(m){
+  if (m.type === "ready"){ sky.ready = true; showDate(); return; }
+  if (m.type === "frame"){
+    sky.busy = false; sky.last = m; compose(m);
+    if (sky.pending){ const p = sky.pending; sky.pending = null; requestFrame(p); }
+  }
+}
+
+// parametry snímku pro den cyklu (dayFloat 0–30) a tvář
+function frameParams(t, dayFloat, low){
+  const info = describe(t);
+  const isDS = t.m === -1;
+  const f = isDS ? 0 : (dayFloat % 30) / 30;
+  const rot = isDS ? -15 : t.m * 30 + dayFloat - 15;
+  const th = 2*Math.PI*f, illum = (1 - Math.cos(2*Math.PI*f)) / 2;
+  const cv = $("sky"), css = Math.min(440, cv.clientWidth || 440), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const S = Math.max(120, Math.min(low ? 230 : 560, Math.round(css * 0.6 * dpr)));
+  return {garus: info.garus, isDS, f, rot, illum, S, Sr: Math.round(S * (info.garus ? 0.4 : 0.55)),
+    rx: Math.sin(th), ry: 0.12 * Math.sin(2*th), amb: 0.015 + 0.045 * (1 - illum)};
+}
+function requestFrame(p){
+  if (!sky.ready) return;
+  if (sky.busy){ sky.pending = p; return; }
+  sky.busy = true;
+  const q = {type:"render", id: ++sky.seq, S:p.S, Sr:p.Sr, garus:p.garus, f:p.f, rot:p.rot, amb:p.amb,
+    caster:{x:p.rx, y:p.ry, z:1.6, umbra:0.17, pen:0.36}, p};
+  if (sky.worker) sky.worker.postMessage(q);
+  else setTimeout(() => {
+    const M = sky.local, L = M.sunDir(q.f);
+    onModelMessage({type:"frame", id:q.id, S:q.S, Sr:q.Sr, p:q.p,
+      g: q.garus ? M.renderGarus(q.S, q.rot, L, q.caster, q.amb) : null, r: M.renderRigus(q.Sr, L, q.amb)});
+  }, 0);
+}
+function bufToCanvas(buf, S){
+  const c = document.createElement("canvas"); c.width = S; c.height = S;
+  c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(buf.buffer || buf), S, S), 0, 0);
+  return c;
+}
+function compose(m){
+  const p = m.p, cv = $("sky"), css = Math.min(440, cv.clientWidth || 440), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const W = Math.round(css * dpr);
+  if (cv.width !== W){ cv.width = W; cv.height = W; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(W/440, 0, 0, W/440, 0, 0);
+  ctx.clearRect(0, 0, 440, 440);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  STARS.forEach(s => { ctx.globalAlpha = p.garus && !p.isDS ? s[3]*(1 - p.illum*.65) : s[3]; ctx.fillStyle = "#e9e2cc"; ctx.beginPath(); ctx.arc(s[0]*440, s[1]*440, s[2], 0, Math.PI*2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+  const cx = 220, cy = 214, R = 132, r = R * 0.4;
+  if (!p.garus){
+    const rr = R * 0.55;
+    ctx.drawImage(bufToCanvas(m.r, m.Sr), cx - rr, cy - rr, 2*rr, 2*rr);
+    return;
+  }
+  if (p.isDS){
+    const g = ctx.createRadialGradient(cx, cy, R*.96, cx, cy, R*1.85);
+    g.addColorStop(0, "rgba(255,244,214,.95)"); g.addColorStop(.16, "rgba(255,228,170,.45)"); g.addColorStop(1, "rgba(255,220,160,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R*1.85, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.drawImage(bufToCanvas(m.g, m.S), cx - R, cy - R, 2*R, 2*R);
+  // dráha Riguse
+  ctx.save(); ctx.setLineDash([2,5]); ctx.strokeStyle = "rgba(233,226,204,.28)"; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i <= 120; i++){ const th = i/120*Math.PI*2, x = cx + R*Math.sin(th), y = cy - R*.12*Math.sin(2*th); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke(); ctx.restore();
+  const rx = cx + R*p.rx, ry = cy - R*p.ry;
+  ctx.drawImage(bufToCanvas(m.r, m.Sr), rx - r, ry - r, 2*r, 2*r);
+  // popisky
+  ctx.font = "500 12.5px 'Alegreya Sans SC', sans-serif"; ctx.textAlign = "center";
+  if ($("labels").checked){
+    const rot = p.rot * Math.PI/180;
+    MoonModel_FEATURES.forEach(([name, lon, lat]) => {
+      const la = lat*Math.PI/180, dl = lon*Math.PI/180 - rot, z = Math.cos(la)*Math.cos(dl);
+      if (z < 0.2) return;
+      const x = cx + R*Math.cos(la)*Math.sin(dl), y = cy - R*Math.sin(la);
+      ctx.fillStyle = "rgba(10,13,22,.7)"; ctx.fillRect(x - ctx.measureText(name).width/2 - 4, y - 19, ctx.measureText(name).width + 8, 16);
+      ctx.fillStyle = "#f1e7c8"; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI*2); ctx.fill();
+      ctx.fillText(name, x, y - 7);
+    });
+  }
+  ctx.fillStyle = "rgba(233,226,204,.75)";
+  ctx.fillText("Garus", cx, cy + R + 24);
+  ctx.fillText("Rigus", rx, Math.max(14, ry - r - 8));
+}
+const MoonModel_FEATURES = [
+  ["Klidné pláně Jasu", 5, 5], ["Malé moře", 53, 18], ["Údolí soutěsek", 82, -14],
+  ["Paprskový kráter", 108, 72], ["Pohoří Věže", 153, 17], ["Moře stínů", 203, -6],
+  ["Velký zlom", 248, 4], ["Pole kráterů", 262, -16], ["Vrásy Starce", 318, 4]
+];
+
+function captions(t, dayFloat, preview){
+  const info = describe(t);
+  if (!info.garus){ $("skyTitle").textContent = "Jen Rigus"; $("skySub").textContent = "Garus ještě není na oběžné dráze Malenoru"; return; }
+  if (t.m === -1){ $("skyTitle").textContent = "Nov · zatmění Slunce"; $("skySub").textContent = "Dvojčata zakryla Slunce, zbývá jen koróna"; return; }
+  const d = Math.min(30, Math.max(1, Math.round(dayFloat)));
+  $("skyTitle").textContent = phaseName({y:t.y, m:t.m, d});
+  const rot = Math.round(mod(t.m*30 + dayFloat - 15, 360));
+  $("skySub").textContent = (preview ? "Náhled · " : "") + `${dayFloat.toLocaleString("cs-CZ", {maximumFractionDigits:1})}. den cyklu · tvář ${MONTHS[t.m][0]} · Garus pootočen o ${rot}°`;
+}
+function showDate(){
+  const t = cur, d = t.m === -1 ? 1 : t.d;
+  $("cycle").value = d; $("cycleOut").textContent = t.m === -1 ? "Den stínů" : d;
+  captions(t, d, false);
+  if (!sky.ready){ $("skySub").textContent = "Připravuji povrch Garu…"; }
+  requestFrame(frameParams(t, t.m === -1 ? 0 : d, false));
+}
+// posuvník fáze
+const cyc = $("cycle");
+cyc.addEventListener("input", () => {
+  sky.dragging = true; stopPlay(false);
+  const t = cur.m === -1 ? {y:cur.y, m:0, d:1} : cur, v = parseFloat(cyc.value);
+  $("cycleOut").textContent = v.toLocaleString("cs-CZ", {maximumFractionDigits:1});
+  captions(t, v, true);
+  requestFrame(frameParams(t, v, true));
+});
+cyc.addEventListener("change", () => {
+  sky.dragging = false;
+  const m = cur.m === -1 ? 0 : cur.m;
+  setDate({y:cur.y, m, d: Math.min(30, Math.max(1, Math.round(parseFloat(cyc.value))))});
+});
+$("labels").addEventListener("change", () => { if (sky.last) compose(sky.last); });
+// přehrání cyklu: plynule po dnech, přes hranice tváří
+let anim = null;
+function stopPlay(commit){
+  if (!sky.playing) return;
+  sky.playing = false; $("play").setAttribute("aria-pressed", "false"); $("play").textContent = "Přehrát cyklus";
+  cancelAnimationFrame(anim.raf);
+  if (commit) setDate(fromAbs(Math.round(anim.a)));
+}
+$("play").setAttribute("aria-pressed", "false");
+$("play").addEventListener("click", () => {
+  if (sky.playing){ stopPlay(true); return; }
+  sky.playing = true; $("play").setAttribute("aria-pressed", "true"); $("play").textContent = "Zastavit";
+  anim = {a: toAbs(cur), t0: performance.now(), raf: 0};
+  const a0 = anim.a;
+  const step = now => {
+    if (!sky.playing) return;
+    anim.a = a0 + (now - anim.t0) / 1000 * 2.5;           // 2,5 dne za sekundu
+    const whole = Math.floor(anim.a), t = fromAbs(whole), frac = anim.a - whole;
+    const dayFloat = t.m === -1 ? 0 : t.d + frac;
+    const shown = t.m === -1 ? t : t;
+    $("cycle").value = t.m === -1 ? 1 : Math.min(30, dayFloat); $("cycleOut").textContent = t.m === -1 ? "Den stínů" : Math.floor(dayFloat);
+    captions(shown, dayFloat, true);
+    if (!sky.busy) requestFrame(frameParams(shown, dayFloat, true));
+    anim.raf = requestAnimationFrame(step);
+  };
+  anim.raf = requestAnimationFrame(step);
+});
+window.addEventListener("resize", () => { if (sky.last && !sky.playing) showDate(); });
+
+// --- Časinka ---
+const TEP_DAY = 90000, TEP_DECH = 30, TEP_KROK = 3000, TEP_SEC = 90180 / 90000;
+const PARTS = [["Stín / Noc",0,6,"--pd-night"],["Záhlav",6,8,"--pd-dawn"],["Vzestup",8,14,"--pd-morn"],["Pál",14,16,"--pd-noon"],
+  ["Sklon",16,22,"--pd-aft"],["Soumrak",22,25,"--pd-dusk"],["Stín / Noc",25,30,"--pd-night"]];
+const pad2 = n => String(n).padStart(2, "0");
+const svgNS = "http://www.w3.org/2000/svg";
+function pol(cx, cy, r, deg){ const a = (deg - 90) * Math.PI / 180; return [cx + r*Math.cos(a), cy + r*Math.sin(a)]; }
+function arcPath(r0, r1, d0, d1){
+  const [a,b] = pol(100,100,r1,d0), [c,d] = pol(100,100,r1,d1), [e,f] = pol(100,100,r0,d1), [g,h] = pol(100,100,r0,d0), big = d1 - d0 > 180 ? 1 : 0;
+  return `M${a} ${b}A${r1} ${r1} 0 ${big} 1 ${c} ${d}L${e} ${f}A${r0} ${r0} 0 ${big} 0 ${g} ${h}Z`;
+}
+(function buildDials(){
+  // Země: 12hodinový ciferník
+  let e = `<circle cx="100" cy="100" r="94" fill="var(--surface)" stroke="var(--rule)"/>`;
+  for (let i = 0; i < 60; i++){ const [x1,y1] = pol(100,100,90,i*6), [x2,y2] = pol(100,100,i % 5 ? 86 : 80,i*6); e += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--muted)" stroke-width="${i % 5 ? .7 : 1.6}"/>`; }
+  for (let h = 1; h <= 12; h++){ const [x,y] = pol(100,100,68,h*30); e += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="13" fill="var(--ink)" font-family="Alegreya, serif">${h}</text>`; }
+  e += `<line id="eH" x1="100" y1="100" x2="100" y2="55" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>`;
+  e += `<line id="eM" x1="100" y1="100" x2="100" y2="30" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>`;
+  e += `<line id="eS" x1="100" y1="112" x2="100" y2="22" stroke="var(--accent)" stroke-width="1.2"/><circle cx="100" cy="100" r="3.5" fill="var(--accent)"/>`;
+  $("earthDial").innerHTML = e;
+  // Malenor: 30 kroků, části dne na obvodu
+  let m = `<circle cx="100" cy="100" r="94" fill="var(--surface)" stroke="var(--rule)"/>`;
+  PARTS.forEach(p => { m += `<path d="${arcPath(84, 94, p[1]*12, p[2]*12)}" fill="var(${p[3]})" opacity=".85"><title>${p[0]}</title></path>`; });
+  for (let k = 0; k < 30; k++){ const [x1,y1] = pol(100,100,83,k*12), [x2,y2] = pol(100,100,k % 3 ? 79 : 74,k*12); m += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--muted)" stroke-width="${k % 3 ? .8 : 1.6}"/>`; }
+  for (let k = 0; k < 30; k += 3){ const [x,y] = pol(100,100,63,k*12); m += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="${k === 15 ? 14 : 12.5}" font-weight="${k === 15 ? 700 : 400}" fill="${k === 15 ? "var(--gold)" : "var(--ink)"}" font-family="Alegreya, serif">${k}</text>`; }
+  m += `<line id="mKh" x1="100" y1="100" x2="100" y2="58" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>`;
+  m += `<line id="mDh" x1="100" y1="100" x2="100" y2="32" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round"/>`;
+  m += `<line id="mTh" x1="100" y1="112" x2="100" y2="24" stroke="var(--accent)" stroke-width="1.2"/><circle cx="100" cy="100" r="3.5" fill="var(--accent)"/>`;
+  $("malDial").innerHTML = m;
+})();
+const clock = {mode:"now", earthSec: 12*3600};
+const teps2kdt = t => { t = Math.floor(t); return [Math.floor(t / TEP_KROK), Math.floor((t % TEP_KROK) / TEP_DECH), t % TEP_DECH]; };
+function partOf(teps){ const k = teps / TEP_KROK; return PARTS.find(p => k >= p[1] && k < p[2])[0]; }
+function setHand(id, deg){ $(id).setAttribute("transform", `rotate(${deg.toFixed(2)} 100 100)`); }
+function showClock(earthSec, syncInputs){
+  earthSec = mod(earthSec, 86400);
+  const teps = earthSec / 86400 * TEP_DAY;
+  const h = Math.floor(earthSec / 3600), mi = Math.floor(earthSec % 3600 / 60), se = Math.floor(earthSec % 60);
+  setHand("eH", (earthSec / 43200) * 360); setHand("eM", (earthSec % 3600) / 3600 * 360); setHand("eS", (earthSec % 60) / 60 * 360);
+  setHand("mKh", teps / TEP_DAY * 360); setHand("mDh", (teps % TEP_KROK) / TEP_KROK * 360); setHand("mTh", (teps % TEP_DECH) / TEP_DECH * 360);
+  const [k, d, t] = teps2kdt(teps);
+  $("earthDigital").textContent = `${pad2(h)}:${pad2(mi)}:${pad2(se)}`;
+  $("malDigital").textContent = `${pad2(k)}:${pad2(d)}:${pad2(t)}`;
+  $("malPart").textContent = partOf(teps);
+  if (syncInputs){
+    if (document.activeElement !== $("earthTime")) $("earthTime").value = `${pad2(h)}:${pad2(mi)}:${pad2(se)}`;
+    [["mK",k],["mD",d],["mT",t]].forEach(([id,v]) => { if (document.activeElement !== $(id)) $(id).value = v; });
+  }
+}
+function setMode(m){
+  clock.mode = m;
+  $("modeNow").setAttribute("aria-pressed", m === "now" ? "true" : "false");
+  $("modeCustom").setAttribute("aria-pressed", m === "custom" ? "true" : "false");
+  if (m === "custom") showClock(clock.earthSec, true);
+}
+$("modeNow").onclick = () => setMode("now");
+$("modeCustom").onclick = () => setMode("custom");
+$("earthTime").addEventListener("input", () => {
+  const v = $("earthTime").value.split(":").map(Number); if (v.some(n => !Number.isFinite(n))) return;
+  clock.earthSec = v[0]*3600 + v[1]*60 + (v[2] || 0); setMode("custom"); showClock(clock.earthSec, true);
+});
+["mK","mD","mT"].forEach(id => $(id).addEventListener("input", () => {
+  const k = Math.min(29, Math.max(0, parseInt($("mK").value,10) || 0)), d = Math.min(99, Math.max(0, parseInt($("mD").value,10) || 0)), t = Math.min(29, Math.max(0, parseInt($("mT").value,10) || 0));
+  clock.earthSec = (k*TEP_KROK + d*TEP_DECH + t) / TEP_DAY * 86400; setMode("custom"); showClock(clock.earthSec, true);
+}));
+(function tick(){
+  if (clock.mode === "now"){
+    const n = new Date();
+    showClock(n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds() + n.getMilliseconds()/1000, true);
+  }
+  requestAnimationFrame(tick);
+})();
+// převod délky
+function durFromEarth(){
+  const sec = (parseFloat($("dH").value) || 0)*3600 + (parseFloat($("dM").value) || 0)*60;
+  const [k, d, t] = teps2kdt(Math.round(sec / TEP_SEC));
+  $("dK").value = k; $("dD").value = d; $("dT").value = t;
+}
+function durFromMal(){
+  const teps = (parseInt($("dK").value,10) || 0)*TEP_KROK + (parseInt($("dD").value,10) || 0)*TEP_DECH + (parseInt($("dT").value,10) || 0);
+  const min = Math.round(teps * TEP_SEC / 60);
+  $("dH").value = Math.floor(min / 60); $("dM").value = min % 60;
+}
+["dH","dM"].forEach(id => $(id).addEventListener("input", durFromEarth));
+["dK","dD","dT"].forEach(id => $(id).addEventListener("input", durFromMal));
+durFromEarth();
+
+render();
+document.fonts && document.fonts.ready.then(() => { if (sky.last) compose(sky.last); });
+</script>
