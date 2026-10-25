@@ -1,0 +1,68 @@
+rules_version = '2';
+// Pravidla databáze MalenorWiki.
+// Vlož celý tento soubor do Firebase konzole: Firestore → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // ID vypravěčů – stejný seznam jako v site-config.js
+    function isAdmin() { return signedIn() && me() in ['ADMIN_UID']; }
+    function isMember() {
+      return isAdmin() || (signedIn() && exists(/databases/$(database)/documents/members/$(me())));
+    }
+
+    // Schválení členové. Zapisuje jen vypravěč.
+    match /members/{uid} {
+      allow read: if isAdmin() || (signedIn() && me() == uid);
+      allow write: if isAdmin();
+    }
+
+    // Žádosti o přístup. Každý si může založit jen svou.
+    match /requests/{uid} {
+      allow read: if isAdmin() || (signedIn() && me() == uid);
+      allow create, update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'photo', 'createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    // Veřejné profily (jméno a fotka) pro členy.
+    match /users/{uid} {
+      allow read: if isMember();
+      allow write: if isMember() && me() == uid
+        && request.resource.data.keys().hasOnly(['name', 'photo', 'updatedAt']);
+    }
+
+    // Články a jejich starší verze. Číst smí členové, zapisovat vypravěč.
+    match /articles/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+      match /revisions/{rev} {
+        allow read: if isMember();
+        allow write: if isAdmin();
+      }
+    }
+
+    // Návrhy úprav.
+    match /proposals/{id} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.author == me()
+        && request.resource.data.status == 'open'
+        && request.resource.data.type in ['edit', 'new'];
+      allow update: if isAdmin() || (isMember()
+        && resource.data.author == me()
+        && resource.data.status == 'open'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['title', 'section', 'tags', 'body', 'note', 'updatedAt']));
+      allow delete: if isAdmin() || (isMember()
+        && resource.data.author == me()
+        && resource.data.status == 'open');
+    }
+
+    // Všechno ostatní je zavřené.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
