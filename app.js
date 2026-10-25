@@ -988,9 +988,9 @@ function updateWhenUI(){
 const SEED_EVENTS = [
   ["I", "Dopad Korinského impaktoru"], ["I", "Doba ledová"], ["I", "Vymírání ras / zánik prvního světa"],
   ["II", "Zachycení Garusu na oběžné dráze Malenoru", { year: -52002 }], ["II", "Vystavění létajícího města Sartixikathum"], ["II", "První vpád ze Stínozemí"], ["II", "Prokletí drow"], ["II", "Runové války a zničení světotvorných run"],
-  ["III", "Otevření průrvy a příchod lidí"], ["III", "Vznik nových říší"], ["III", "Stavba dračího města na Rigusu"], ["III", "Válka křídel a pěstí"], ["III", "Zasazení sporu elfů a trpaslíků"],
+  ["III", "Otevření průrvy a příchod lidí"], ["III", "Vznik nových říší"], ["III", "Stavba dračího města na Rigusu"], ["III", "Válka Křídel a Pěstí"], ["III", "Zasazení sporu elfů a trpaslíků"],
   ["IV", "Ďábelsko-démonický vpád na Korin"], ["IV", "Odchod tieflingů na Talju"], ["IV", "Vznik technomagických věží"], ["IV", "Vrchol lidských říší a technomagického věku"], ["IV", "Velká válka", { year: -593, end: 0 }],
-  ["V", "Konec Velké války", { year: 0 }], ["V", "Založení Korinského Triarchátu"], ["V", "Ustanovení Pretoriánů jako soudní a výkonné moci"], ["V", "Ustanovení správcovských měst a jmenování správců"], ["V", "Současné napětí a návrat starých hrozeb"]
+  ["V", "Konec Velké války", { year: 0 }], ["V", "Založení Korinského Triarchátu"], ["V", "Ustanovení Preatorů jako soudní a výkonné moci"], ["V", "Ustanovení správcovských měst a jmenování správců"], ["V", "Současné napětí a návrat starých hrozeb"]
 ];
 async function seedTimeline(e){
   const btn = e.currentTarget; btn.disabled = true;
