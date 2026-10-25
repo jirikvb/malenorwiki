@@ -7,7 +7,7 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function me() { return request.auth.uid; }
     // ID vypravěčů – stejný seznam jako v site-config.js
-    function isAdmin() { return signedIn() && me() in ['ADMIN_UID']; }
+    function isAdmin() { return signedIn() && me() in ['XTzKUDtsVRR6LBmcMUsC5F8b4iO2']; }
     function isMember() {
       return isAdmin() || (signedIn() && exists(/databases/$(database)/documents/members/$(me())));
     }

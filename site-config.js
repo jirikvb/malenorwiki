@@ -1,7 +1,7 @@
 // Nastavení MalenorWiki, které se mění jen výjimečně.
 
 // ID účtů vypravěčů (správců). Musí být shodné se seznamem ve firestore.rules.
-export const ADMIN_UIDS = [];
+export const ADMIN_UIDS = ["XTzKUDtsVRR6LBmcMUsC5F8b4iO2"];
 
 // Sekce wiki. Klíč (key) se ukládá k článkům, proto ho po založení článků neměň.
 // Název a popis měnit můžeš kdykoli.
