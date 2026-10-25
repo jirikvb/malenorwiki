@@ -5,8 +5,8 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=4";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS } from "./site-config.js?v=4";
+import { firebaseConfig } from "./firebase-config.js?v=5";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS } from "./site-config.js?v=5";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -190,7 +190,7 @@ function renderChrome(){
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
     link("#/osa", "Osa", cur === "osa"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
-    link("kalendar.html", "Kalendář", false),
+    link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
   ].join("");
   if (S.loaded.articles) renderTimelineChrome();
@@ -215,6 +215,7 @@ function renderMain(){
     case "hledat": return searchView(v, r.slice(1).join("/"));
     case "historie": return historyView(v, r[1]);
     case "osa": return timelineView(v, r[1]);
+    case "kalendar": return calendarView(v);
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }
@@ -331,7 +332,7 @@ function sectionView(v, key){
       <span class="eyebrow"><a href="#/">MalenorWiki</a> · sekce</span>
       <div class="spread"><h1>${esc(sec.name)}</h1><a class="btn" href="#/novy/${enc(key)}">${S.admin ? "Nový článek" : "Navrhnout článek"}</a></div>
       ${sec.desc ? `<p class="lede">${esc(sec.desc)}</p>` : ""}
-      ${key === "cas" ? `<p><a class="btn" href="kalendar.html">Otevřít převodník kalendáře a Časinku</a></p>` : ""}
+      ${key === "cas" ? `<p><a class="btn" href="#/kalendar">Otevřít převodník kalendáře a Časinku</a></p>` : ""}
     </div>
     ${arts.length ? `<ul class="list">${arts.map(a => `<li><a class="item" href="#/clanek/${enc(a.id)}"><strong>${esc(a.title)}</strong>${a.body ? `<span class="ex">${esc(excerpt(a.body))}</span>` : ""}</a></li>`).join("")}</ul>`
       : `<p class="muted">V této sekci zatím nejsou žádné články.</p>`}`;
@@ -914,6 +915,21 @@ function timelineView(v, ageKey){
     <div class="vt-wrap">${verticalTimeline(M, R, "age-")}</div>`;
   if (ageKey){ const el = document.getElementById(window.matchMedia("(min-width: 900px)").matches ? "hage-" + ageKey : "age-" + ageKey); if (el) el.scrollIntoView({ block: "nearest", inline: "start" }); }
   const sb = $("#seedBtn"); if (sb) sb.onclick = seedTimeline;
+}
+
+// kalendář a Časinka uvnitř wiki
+function calendarView(v){
+  S.editing = true; // nepřekreslovat, jinak by se kalendář načítal znovu
+  v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/">MalenorWiki</a></span><h1>Kalendář a Časinka</h1>
+    <p class="lede">Převod data, tváře, svátky, fáze dvojčat a malenorský čas.</p></div>
+    <iframe class="cal-frame" id="calFrame" src="kalendar.html?embed=1&amp;v=5" title="Kalendář Malenoru"></iframe>`;
+  const f = $("#calFrame");
+  const fit = () => { try { const d = f.contentDocument; if (d && d.documentElement) f.style.height = d.documentElement.scrollHeight + "px"; } catch (e) {} };
+  f.addEventListener("load", () => {
+    fit();
+    try { new ResizeObserver(fit).observe(f.contentDocument.body); } catch (e) {}
+    try { f.contentDocument.querySelectorAll('a[href^="./"]').forEach(a => { a.target = "_top"; }); } catch (e) {}
+  });
 }
 
 // mobilní vysouvací osa

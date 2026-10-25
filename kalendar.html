@@ -6,6 +6,7 @@
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
+<script>if (/[?&]embed\b/.test(location.search)) document.documentElement.classList.add("embed");</script>
 <title>Kalendář Malenoru</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -169,11 +170,13 @@ input[type=time]{background:var(--bg);border:1px solid var(--rule);border-radius
 section{display:flex;flex-direction:column;gap:12px}
 hr{border:0;border-top:1px solid var(--rule);margin:0;width:100%}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+html.embed body{padding:0 0 8px}
+html.embed header{display:none}
 </style>
 
 <div class="wrap">
   <header>
-    <span class="eyebrow">MalenorWiki · ukázka převodníku</span>
+    <span class="eyebrow"><a href="./#/" style="color:inherit">MalenorWiki</a> · kalendář</span>
     <h1>Kalendář Malenoru</h1>
     <p class="lede">Zadej datum korinského letopočtu. Převodník ukáže roční období, dekan, svátek, fázi dvojčat i to, kdy přijde další Den stínů.</p>
   </header>

@@ -272,3 +272,6 @@ textarea{min-height:52vh;line-height:1.55;resize:vertical;font-family:var(--font
 .ht-card small{color:var(--gold);font-size:12px}
 .ht-card strong{font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ht-now{position:absolute;height:32px;border-left:2px dashed var(--danger)}
+
+/* kalendář vložený do wiki */
+.cal-frame{display:block;width:100%;min-height:70vh;border:0;background:transparent}
