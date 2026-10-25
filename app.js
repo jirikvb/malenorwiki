@@ -5,8 +5,8 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
-import { ADMIN_UIDS, SECTIONS } from "./site-config.js";
+import { firebaseConfig } from "./firebase-config.js?v=2";
+import { ADMIN_UIDS, SECTIONS } from "./site-config.js?v=2";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
