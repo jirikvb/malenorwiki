@@ -172,3 +172,103 @@ textarea{min-height:52vh;line-height:1.55;resize:vertical;font-family:var(--font
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:15px;max-width:calc(100% - 32px);z-index:20;box-shadow:0 4px 18px #0004}
 .toast.err{background:var(--danger);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* ---------- historická osa ---------- */
+.when-line{margin:0;font-size:15.5px;color:var(--muted)}
+.when-line a{color:var(--gold)}
+.whenbox{border:1px solid var(--rule);border-radius:6px;padding:10px 14px 12px;margin:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.whenbox legend{font-family:var(--font-label);font-size:13px;letter-spacing:.08em;color:var(--muted);padding:0 6px}
+.when-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 14px;align-items:end}
+.when-grid .wide{grid-column:1/-1}
+.when-grid input[type=number]{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:8px 10px;width:100%;min-width:0}
+.row.nowrap{flex-wrap:nowrap}
+.row.nowrap select{width:auto;flex:none}
+.chk{display:inline-flex;gap:8px;align-items:center;cursor:pointer;font-size:15.5px}
+
+/* pás v hlavičce (počítač) */
+.band{display:none}
+@media (min-width:900px){
+  .band:not([hidden]){display:block;border-top:1px solid var(--rule)}
+  .band-inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:8px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+  .band-track{position:relative;flex:1;height:38px;min-width:0}
+  .band-age{position:absolute;top:0;height:100%;border-left:1px solid var(--rule);text-decoration:none;color:var(--muted)}
+  .band-age:nth-child(even){background:var(--sel)}
+  .band-age span{position:absolute;top:1px;left:6px;right:4px;font-family:var(--font-label);font-size:11.5px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .band-age:hover span{color:var(--ink)}
+  .band-line{position:absolute;left:0;right:0;top:26px;border-top:1px solid var(--muted);pointer-events:none}
+  .band-span{position:absolute;top:23px;height:7px;border-radius:4px;background:var(--gold);opacity:.55;pointer-events:none}
+  .band-dot{position:absolute;top:21px;width:11px;height:11px;margin-left:-5.5px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);z-index:1}
+  .band-dot:hover,.band-dot:focus-visible{transform:scale(1.35);z-index:3}
+  .band-dot:hover::after,.band-dot:focus-visible::after{content:attr(data-label);position:absolute;bottom:16px;left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:12.5px;font-family:var(--font-body);padding:3px 8px;border-radius:4px;pointer-events:none}
+  .band-dot.dim,.band-span.dim{opacity:.28}
+  .band-dot.rel{background:var(--gold)}
+  .band-dot.cur{background:var(--gold);width:15px;height:15px;margin-left:-7.5px;top:19px;box-shadow:0 0 0 2px var(--gold)}
+  .band-now{position:absolute;top:14px;height:24px;border-left:2px dashed var(--danger);pointer-events:none}
+  .band-all{font-family:var(--font-label);font-size:13px;letter-spacing:.04em;white-space:nowrap}
+}
+
+/* svislý pruh u okraje (telefon) */
+.rail{display:none}
+.drawer,.scrim{display:none}
+@media (max-width:899.98px){
+  body.has-rail .view,body.has-rail .foot{padding-right:calc(max(16px,env(safe-area-inset-right,0px)) + 22px)}
+  .rail:not([hidden]){display:block;position:fixed;right:0;top:var(--hdr,96px);bottom:0;width:22px;padding:0;border:0;border-left:1px solid var(--rule);border-radius:0;background:var(--bg);z-index:4;cursor:pointer;margin-right:env(safe-area-inset-right,0px)}
+  .rail-age{position:absolute;left:0;right:0;border-top:1px solid var(--rule)}
+  .rail-age:nth-child(even){background:var(--sel)}
+  .rail-age b{position:absolute;top:4px;left:0;right:0;text-align:center;font-family:var(--font-label);font-size:10px;font-weight:500;color:var(--muted)}
+  .rail-dot{position:absolute;left:7px;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--accent)}
+  .rail-dot.dim{opacity:.28}
+  .rail-dot.rel{background:var(--gold)}
+  .rail-dot.cur{background:var(--gold);left:5px;width:11px;height:11px;margin-top:-5.5px}
+  .rail-now{position:absolute;left:2px;right:2px;border-top:2px dashed var(--danger)}
+  .scrim:not([hidden]){display:block;position:fixed;inset:0;background:#0006;z-index:8}
+  .drawer:not([hidden]){display:flex;flex-direction:column;position:fixed;top:0;right:0;bottom:0;width:min(90vw,440px);background:var(--bg);z-index:9;border-left:1px solid var(--rule);box-shadow:-6px 0 24px #0003;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .drawer-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .drawer-head h2{flex:1;font-size:1.35rem}
+  #drawerBody{overflow-y:auto;padding:14px 16px 28px;flex:1}
+}
+
+/* svislá osa (telefon, vysouvací panel) */
+.vt,.vt-items{list-style:none;margin:0;padding:0}
+.vt{display:flex;flex-direction:column;gap:18px}
+.vt-age-head{display:flex;gap:10px;align-items:baseline;padding-bottom:6px;border-bottom:1px solid var(--rule);scroll-margin-top:calc(var(--hdr,96px) + 8px)}
+.vt-age-head strong{font-family:var(--font-display);font-size:1.3rem;font-weight:600;display:block;line-height:1.1}
+.vt-age-head small{color:var(--muted);font-size:13.5px}
+.vt-roman{font-family:var(--font-display);font-weight:700;color:var(--gold);font-size:1.15rem;min-width:1.8em}
+.vt-items{position:relative;margin-left:.8em;padding-left:18px;border-left:2px solid var(--rule)}
+.vt-item{position:relative}
+.vt-item::before{content:"";position:absolute;left:-24px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+.vt-item.span::before{border-radius:2px;background:var(--gold)}
+.vt-item.rel::before{background:var(--gold)}
+.vt-item.cur::before{background:var(--gold);box-shadow:0 0 0 3px var(--gold)}
+.vt-item.dim{opacity:.5}
+.vt-item.now::before{background:var(--danger)}
+.vt-item a,.vt-item > span{display:flex;flex-direction:column;gap:1px;padding:9px 0;text-decoration:none;color:var(--ink)}
+.vt-item a:hover strong{text-decoration:underline;text-underline-offset:3px}
+.vt-item strong{font-weight:500}
+.vt-item.cur strong{font-weight:700}
+.vt-date{color:var(--gold);font-size:13.5px;font-variant-numeric:tabular-nums}
+.vt-item .ex{color:var(--muted);font-size:14.5px}
+.vt-empty{color:var(--muted);font-size:14.5px;padding:8px 0}
+
+/* stránka osy: vodorovně na počítači, svisle na telefonu */
+.ht-wrap{display:none}
+@media (min-width:900px){
+  .ht-wrap{display:block}
+  .vt-wrap{display:none}
+}
+.ht{overflow-x:auto;overflow-y:hidden;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+.ht-inner{position:relative}
+.ht-age{position:absolute;top:0;bottom:0;border-left:1px solid var(--rule);padding:6px 10px;text-decoration:none;color:var(--ink);display:block;scroll-margin-left:12px}
+.ht-age:nth-of-type(even){background:var(--sel)}
+.ht-age strong{font-family:var(--font-display);font-size:1.15rem;font-weight:600}
+.ht-age small{display:block;color:var(--muted);font-size:12.5px}
+.ht-axis{position:absolute;left:0;right:0;border-top:2px solid var(--muted)}
+.ht-span{position:absolute;height:10px;border-radius:5px;background:var(--gold);opacity:.6}
+.ht-stem{position:absolute;border-left:1px solid var(--rule)}
+.ht-dot{position:absolute;width:12px;height:12px;margin:-7px 0 0 -6px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);z-index:1}
+.ht-card{position:absolute;display:flex;flex-direction:column;gap:1px;padding:6px 9px;background:var(--bg);border:1px solid var(--rule);border-radius:5px;text-decoration:none;color:var(--ink);font-size:14.5px;line-height:1.25;z-index:2;overflow:hidden}
+.ht-card:hover{border-color:var(--accent);z-index:4}
+.ht-card small{color:var(--gold);font-size:12px}
+.ht-card strong{font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ht-now{position:absolute;height:32px;border-left:2px dashed var(--danger)}

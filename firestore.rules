@@ -54,7 +54,7 @@ service cloud.firestore {
         && resource.data.author == me()
         && resource.data.status == 'open'
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['title', 'section', 'tags', 'body', 'note', 'updatedAt']));
+             .hasOnly(['title', 'section', 'tags', 'body', 'when', 'note', 'updatedAt']));
       allow delete: if isAdmin() || (isMember()
         && resource.data.author == me()
         && resource.data.status == 'open');

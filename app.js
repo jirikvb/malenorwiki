@@ -5,8 +5,8 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=3";
-import { ADMIN_UIDS, SECTIONS } from "./site-config.js?v=3";
+import { firebaseConfig } from "./firebase-config.js?v=4";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS } from "./site-config.js?v=4";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -155,7 +155,8 @@ window.addEventListener("hashchange", () => {
     history.replaceState(null, "", lastHash || "#/");
     showLeaveBar(); return;
   }
-  lastHash = location.hash; S.editing = false; S.dirty = false; stopRoute(); render(); window.scrollTo(0, 0);
+  lastHash = location.hash; S.editing = false; S.dirty = false; stopRoute(); closeDrawer(); render();
+  const r = route(); if (r[0] === "osa" && r[1]) { const el = document.getElementById("age-" + r[1]); if (el) el.scrollIntoView({ block: "start" }); } else window.scrollTo(0, 0);
 });
 window.addEventListener("beforeunload", e => { if (S.dirty){ e.preventDefault(); e.returnValue = ""; } });
 function showLeaveBar(){
@@ -173,6 +174,7 @@ function render(){ renderChrome(); renderMain(); }
 
 function renderChrome(){
   const who = $("#who"), nav = $("#nav"), form = $("#searchForm");
+  if (!S.user || S.status !== "member") hideTimelineChrome();
   if (!S.user){ who.innerHTML = ""; nav.hidden = true; form.hidden = true; return; }
   who.innerHTML = `${S.user.photoURL ? `<img class="avatar" src="${esc(S.user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}<button type="button" class="ghost" id="logoutBtn" title="Odhlásit ${esc(myName())}">Odhlásit</button>`;
   $("#logoutBtn").onclick = logout;
@@ -186,10 +188,12 @@ function renderChrome(){
   nav.innerHTML = [
     link("#/", "Domů", cur === ""),
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
+    link("#/osa", "Osa", cur === "osa"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
     link("kalendar.html", "Kalendář", false),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
   ].join("");
+  if (S.loaded.articles) renderTimelineChrome();
 }
 
 function renderMain(){
@@ -210,6 +214,7 @@ function renderMain(){
     case "navrh": return r[2] === "upravit" ? editorView(v, { kind: "proposal", id: r[1] }) : (r[2] === "schvalit" ? editorView(v, { kind: "approve", id: r[1] }) : proposalView(v, r[1]));
     case "hledat": return searchView(v, r.slice(1).join("/"));
     case "historie": return historyView(v, r[1]);
+    case "osa": return timelineView(v, r[1]);
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }
@@ -345,6 +350,7 @@ function articleView(v, id){
     <div class="head">
       <span class="eyebrow"><a href="#/sekce/${enc(sec.key)}">${esc(sec.name)}</a></span>
       <h1>${esc(a.title)}</h1>
+      ${a.when && eventAge(a.when) ? `<p class="when-line"><a href="#/osa/${enc(eventAge(a.when).key)}">${esc(eventAge(a.when).name)}</a> · ${esc(fmtEvent(a.when))}</p>` : ""}
       ${(a.tags || []).length ? `<div class="tags">${a.tags.map(t => `<a class="tag" href="#/hledat/${enc(t)}">${esc(t)}</a>`).join("")}</div>` : ""}
     </div>
     ${props.length ? `<p class="notice">K tomuto článku ${props.length === 1 ? "je otevřený" : "jsou otevřené"} ${props.length} ${plural(props.length, "návrh", "návrhy", "návrhů")}: ${props.map(p => `<a href="#/navrh/${enc(p.id)}">${esc(p.authorName || "návrh")}</a>`).join(", ")}</p>` : ""}
@@ -400,14 +406,14 @@ function showRevision(id, r){
   });
   box.scrollIntoView({ block: "start" });
   if (S.admin) $("#restore").onclick = async () => {
-    try { await saveArticle(cur ? id : null, { title: r.title, section: r.section || "ostatni", tags: r.tags || [], body: r.body || "" }, "obnoveno ze starší verze", cur ? null : id); toast("Verze obnovena."); go(`#/clanek/${enc(id)}`); }
+    try { await saveArticle(cur ? id : null, { title: r.title, section: r.section || "ostatni", tags: r.tags || [], body: r.body || "", when: r.when || null }, "obnoveno ze starší verze", cur ? null : id); toast("Verze obnovena."); go(`#/clanek/${enc(id)}`); }
     catch (e) { toast(errText(e), "err"); }
   };
 }
 
 // --- ukládání ---
 function revisionOf(a, reason){
-  return { title: a.title || "", section: a.section || "", tags: a.tags || [], body: a.body || "", savedAt: a.updatedAt || null,
+  return { title: a.title || "", section: a.section || "", tags: a.tags || [], body: a.body || "", when: a.when || null, savedAt: a.updatedAt || null,
     by: a.updatedBy || null, byName: a.updatedByName || "", archivedAt: serverTimestamp(), reason: reason || "" };
 }
 async function saveArticle(id, data, reason, forceId){
@@ -449,12 +455,12 @@ function clearDraft(){ if (!draftKey) return; try { localStorage.removeItem(draf
 
 // --- editor ---
 function editorView(v, mode){
-  let base = { title: mode.title || "", section: mode.section || "", tags: [], body: "" }, heading, submitLabel, eyebrow = "";
+  let base = { title: mode.title || "", section: mode.section || "", tags: [], body: "", when: null }, heading, submitLabel, eyebrow = "";
   let article = null, proposal = null;
   if (mode.kind === "article"){
     article = S.articles.get(mode.id);
     if (!article) return notFound(v, "Článek k úpravě neexistuje.");
-    base = { title: article.title, section: article.section, tags: article.tags || [], body: article.body || "" };
+    base = { title: article.title, section: article.section, tags: article.tags || [], body: article.body || "", when: cleanWhen(article.when) };
     heading = S.admin ? "Úprava článku" : "Návrh úpravy";
     submitLabel = S.admin ? "Uložit" : "Odeslat návrh";
     eyebrow = `<a href="#/clanek/${enc(article.id)}">${esc(article.title)}</a>`;
@@ -466,7 +472,7 @@ function editorView(v, mode){
     if (!proposal) return notFound(v, "Tento návrh neexistuje.");
     if (mode.kind === "proposal" && !(proposal.author === S.user.uid && proposal.status === "open")) return notFound(v, "Tento návrh už upravit nejde.");
     if (mode.kind === "approve" && !(S.admin && proposal.status === "open")) return notFound(v, "Tento návrh už nejde schválit.");
-    base = { title: proposal.title, section: proposal.section, tags: proposal.tags || [], body: proposal.body || "" };
+    base = { title: proposal.title, section: proposal.section, tags: proposal.tags || [], body: proposal.body || "", when: cleanWhen(proposal.when) };
     heading = mode.kind === "approve" ? "Upravit a schválit" : "Úprava návrhu";
     submitLabel = mode.kind === "approve" ? "Schválit s úpravami" : "Uložit návrh";
     eyebrow = `<a href="#/navrh/${enc(proposal.id)}">návrh od ${esc(proposal.authorName || "?")}</a>`;
@@ -474,8 +480,8 @@ function editorView(v, mode){
   if (!base.section) base.section = SECTIONS[0].key;
   draftKey = `malenorwiki:koncept:${S.user.uid}:${mode.kind}:${mode.id || mode.section || "_"}:${mode.title || ""}`;
   const draft = loadDraft();
-  const restored = draft && (draft.body !== base.body || draft.title !== base.title);
-  const start = restored ? { title: draft.title, section: draft.section || base.section, tags: draft.tags || base.tags, body: draft.body } : base;
+  const restored = draft && (draft.body !== base.body || draft.title !== base.title || whenKey(draft.when) !== whenKey(base.when));
+  const start = restored ? { title: draft.title, section: draft.section || base.section, tags: draft.tags || base.tags, body: draft.body, when: draft.when === undefined ? base.when : cleanWhen(draft.when) } : base;
   const needNote = !S.admin && (mode.kind === "article" || mode.kind === "new" || mode.kind === "proposal");
 
   S.editing = true;
@@ -493,6 +499,7 @@ function editorView(v, mode){
       </div>
       <div class="field"><label for="edTags">Štítky, oddělené čárkou</label><input type="text" id="edTags" value="${esc((start.tags || []).join(", "))}" placeholder="např. Triarchát, Velká válka"></div>
       <p class="hint" id="dupHint" hidden></p>
+      ${whenFieldsHTML(start.when)}
       <div class="tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" id="tabWrite">Psát</button>
         <button type="button" role="tab" aria-selected="false" id="tabPreview">Náhled</button>
@@ -522,10 +529,12 @@ function editorView(v, mode){
     </form>`;
 
   const title = $("#edTitle"), section = $("#edSection"), tags = $("#edTags"), body = $("#edBody");
-  const current = () => ({ title: title.value.trim(), section: section.value, tags: parseTags(tags.value), body: body.value });
-  const isChanged = () => { const c = current(); return c.title !== base.title || c.section !== base.section || c.body !== base.body || c.tags.join("|") !== (base.tags || []).join("|"); };
-  const onInput = () => { S.dirty = isChanged(); saveDraft(current()); checkDup(); };
+  const current = () => ({ title: title.value.trim(), section: section.value, tags: parseTags(tags.value), body: body.value, when: readWhen() });
+  const isChanged = () => { const c = current(); return c.title !== base.title || c.section !== base.section || c.body !== base.body || c.tags.join("|") !== (base.tags || []).join("|") || whenKey(c.when) !== whenKey(base.when); };
+  const onInput = () => { S.dirty = isChanged(); saveDraft(current()); checkDup(); updateWhenUI(); };
   [title, section, tags, body].forEach(el => el.addEventListener("input", onInput));
+  v.querySelectorAll("#whenBox input, #whenBox select").forEach(el => { el.addEventListener("input", onInput); el.addEventListener("change", onInput); });
+  updateWhenUI();
   S.dirty = restored ? true : false;
   function checkDup(){
     const id = S.titleIndex.get(norm(title.value));
@@ -547,6 +556,7 @@ function editorView(v, mode){
     e.preventDefault();
     const data = current();
     if (!data.title){ title.focus(); return toast("Doplň název.", "err"); }
+    if ($("#wOn").checked && !data.when){ return toast("Na ose musí mít událost rok, nebo aspoň vybraný věk.", "err"); }
     const btn = $("#edSave"); btn.disabled = true; $("#edStatus").textContent = "Ukládám…";
     const note = $("#edNote") ? $("#edNote").value.trim() : "";
     try {
@@ -560,7 +570,7 @@ function editorView(v, mode){
       } else {
         const ref = doc(collection(db, "proposals"));
         await setDoc(ref, { ...data, type: article ? "edit" : "new", articleId: article ? article.id : null,
-          baseTitle: article ? article.title : "", baseSection: article ? article.section : "", baseTags: article ? (article.tags || []) : [], baseBody: article ? (article.body || "") : "",
+          baseTitle: article ? article.title : "", baseSection: article ? article.section : "", baseTags: article ? (article.tags || []) : [], baseBody: article ? (article.body || "") : "", baseWhen: article ? (article.when || null) : null,
           baseUpdatedMs: article ? tsMs(article.updatedAt) : 0, note, author: S.user.uid, authorName: myName(), status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         toast("Návrh odeslán vypravěči."); dest = `#/navrh/${enc(ref.id)}`;
       }
@@ -624,7 +634,9 @@ function proposalView(v, id){
     if (p.section !== oldSec) meta.push(`Sekce: ${esc(sectionOf(oldSec).name)} → ${esc(sectionOf(p.section).name)}`);
     const oldTags = (art ? art.tags : p.baseTags) || [];
     if ((p.tags || []).join("|") !== oldTags.join("|")) meta.push(`Štítky: ${esc(oldTags.join(", ") || "žádné")} → ${esc((p.tags || []).join(", ") || "žádné")}`);
-  }
+    const oldWhen = art ? art.when : p.baseWhen;
+    if (whenKey(oldWhen) !== whenKey(p.when)) meta.push(`Na ose: ${esc(whenSummary(oldWhen))} → ${esc(whenSummary(p.when))}`);
+  } else if (p.when) meta.push(`Na ose: ${esc(whenSummary(p.when))}`);
   const mine = p.author === S.user.uid;
   v.innerHTML = `
     <div class="head">
@@ -652,7 +664,7 @@ function proposalView(v, id){
     acts.innerHTML = `<button type="button" class="primary" id="pApprove">Schválit</button><a class="btn" href="#/navrh/${enc(id)}/schvalit">Upravit a schválit</a><button type="button" class="danger" id="pReject">Zamítnout</button>`;
     $("#pApprove").onclick = async e => {
       e.currentTarget.disabled = true;
-      try { const artId = await applyProposal(p, { title: p.title, section: p.section, tags: p.tags || [], body: p.body || "" }); toast("Návrh schválen."); go(`#/clanek/${enc(artId)}`); }
+      try { const artId = await applyProposal(p, { title: p.title, section: p.section, tags: p.tags || [], body: p.body || "", when: cleanWhen(p.when) }); toast("Návrh schválen."); go(`#/clanek/${enc(artId)}`); }
       catch (err){ toast(errText(err), "err"); e.currentTarget.disabled = false; }
     };
     $("#pReject").onclick = () => {
@@ -738,6 +750,250 @@ function membersView(v){
     box.querySelector("[data-rmn]").onclick = () => membersView(v);
     box.querySelector("[data-rmy]").onclick = async () => { try { await deleteDoc(doc(db, "members", id)); toast("Přístup odebrán."); } catch (e){ toast(errText(e), "err"); } };
   });
+}
+
+// ---------- historická osa ----------
+const AGE_IX = Object.fromEntries(AGES.map((g, i) => [g.key, i]));
+const ROMAN = ["I.", "II.", "III.", "IV.", "V.", "VI.", "VII."];
+const fmtNum = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+const fmtYearM = y => (y < 0 ? fmtNum(-y) + "\u00a0př.v.v." : fmtNum(y) + "\u00a0p.v.v.");
+const ageTo = g => (g.to == null ? CURRENT_YEAR : g.to);
+function ageOfYear(y){ for (let i = AGES.length - 1; i >= 0; i--) if (y >= AGES[i].from) return AGES[i]; return AGES[0]; }
+function eventAge(w){ if (!w) return null; if (w.age && AGE_IX[w.age] !== undefined) return AGES[AGE_IX[w.age]]; return w.year != null ? ageOfYear(w.year) : null; }
+function cleanWhen(w){
+  if (!w || typeof w !== "object") return null;
+  const num = v => (v === "" || v == null || !Number.isFinite(+v)) ? null : Math.trunc(+v);
+  const out = { age: w.age && AGE_IX[w.age] !== undefined ? w.age : null, year: num(w.year), end: num(w.end), approx: !!w.approx,
+    m: num(w.m), d: num(w.d), order: num(w.order), label: String(w.label || "").trim().slice(0, 80) };
+  if (out.m != null && (out.m < 0 || out.m > 11)) out.m = null;
+  if (out.d != null && (out.d < 1 || out.d > 30)) out.d = null;
+  if (out.m == null) out.d = null;
+  if (out.year == null){ out.end = null; out.m = null; out.d = null; }
+  if (out.year == null && !out.age) return null;
+  return out;
+}
+const whenKey = w => JSON.stringify(cleanWhen(w));
+function fmtEvent(w){
+  w = cleanWhen(w); if (!w) return "";
+  if (w.year == null) return "bez přesného data";
+  let s = w.approx ? "cca " : "";
+  if (w.m != null) s += (w.d ? w.d + ". " : "") + MONTHS[w.m] + " ";
+  s += fmtYearM(w.year);
+  if (w.end != null && w.end !== w.year) s += " – " + fmtYearM(w.end);
+  return s;
+}
+function whenSummary(w){ w = cleanWhen(w); if (!w) return "není"; const g = eventAge(w); return (g ? g.name + ", " : "") + fmtEvent(w) + (w.label ? ` („${w.label}“)` : ""); }
+function ageRange(g){
+  const to = g.to;
+  if (to == null) return `${fmtYearM(g.from).replace("\u00a0p.v.v.", "")} – dnes (${fmtYearM(CURRENT_YEAR)})`;
+  const a = to === 0 ? fmtNum(-g.from) + "\u00a0př.v.v. – 0" : (g.from < 0 && to < 0 ? fmtNum(-g.from) + " – " + fmtYearM(to) : fmtYearM(g.from) + " – " + fmtYearM(to));
+  return (g.approx ? "cca " : "") + a;
+}
+
+function timelineModel(){
+  const ages = AGES.map((g, i) => ({ ...g, i, items: [] }));
+  for (const a of S.articles.values()){
+    const w = cleanWhen(a.when); if (!w) continue;
+    const g = eventAge(w); if (!g) continue;
+    ages[AGE_IX[g.key]].items.push({ a, w });
+  }
+  for (const g of ages){
+    const from = g.from, to = ageTo(g), span = (to - from) || 1;
+    const undated = g.items.filter(x => x.w.year == null).sort((x, y) => (x.w.order ?? 9999) - (y.w.order ?? 9999) || byTitle(x.a, y.a));
+    undated.forEach((x, k) => { x.key = from + (k + 1) / (undated.length + 1) * span; });
+    g.items.forEach(x => { if (x.w.year != null) x.key = x.w.year + ((x.w.m ?? 0) * 30 + (x.w.d ?? 0)) / 361; });
+    g.items.sort((x, y) => x.key - y.key || byTitle(x.a, y.a));
+    const n = g.items.length;
+    g.items.forEach((x, k) => { x.pos = (k + 1) / (n + 1); });
+    const anchors = [[from, 0], ...g.items.map(x => [x.key, x.pos]), [to, 1]].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    g.map = y => {
+      if (y <= anchors[0][0]) return 0;
+      for (let k = 1; k < anchors.length; k++){ const [y0, p0] = anchors[k - 1], [y1, p1] = anchors[k]; if (y <= y1) return y1 === y0 ? p1 : p0 + (p1 - p0) * (y - y0) / (y1 - y0); }
+      return 1;
+    };
+  }
+  const G = (i, pos) => (i + pos) / ages.length;
+  for (const g of ages) for (const x of g.items){
+    x.g = G(g.i, x.pos);
+    if (x.w.year != null && x.w.end != null && x.w.end > x.w.year){
+      const eg = ages[AGE_IX[ageOfYear(x.w.end).key]];
+      x.endG = Math.max(x.g, eg.i === g.i ? G(g.i, g.map(x.w.end)) : G(eg.i, eg.map(x.w.end)));
+      x.startG = G(g.i, g.map(x.w.year));
+    }
+  }
+  const now = ages[ages.length - 1];
+  return { ages, nowG: G(now.i, now.map(CURRENT_YEAR)), count: ages.reduce((s, g) => s + g.items.length, 0) };
+}
+function relatedSet(){
+  const r = route();
+  if (r[0] === "sekce") return { set: new Set([...S.articles.values()].filter(a => a.section === r[1]).map(a => a.id)), cur: null };
+  if (r[0] === "clanek" || r[0] === "historie"){
+    const a = S.articles.get(r[1]); if (!a) return null;
+    const set = new Set([a.id]), t = norm(a.title);
+    for (const tl of linksIn(a.body)){ const id = S.titleIndex.get(tl); if (id) set.add(id); }
+    for (const x of S.articles.values()) if (linksIn(x.body).has(t)) set.add(x.id);
+    return { set, cur: a.id };
+  }
+  return null;
+}
+const relClass = (rel, id) => !rel ? "" : (rel.cur === id ? " cur" : rel.set.has(id) ? " rel" : " dim");
+const evLabel = x => x.w.label || x.a.title;
+const pct = v => (v * 100).toFixed(3) + "%";
+
+function hideTimelineChrome(){ ["#band", "#rail"].forEach(sel => { const el = $(sel); if (el) el.hidden = true; }); document.body.classList.remove("has-rail"); closeDrawer(); }
+function renderTimelineChrome(){
+  const band = $("#band"), rail = $("#rail");
+  const M = timelineModel(), rel = relatedSet();
+  const anyRel = rel && M.ages.some(g => g.items.some(x => rel.set.has(x.a.id)));
+  const R = anyRel ? rel : null;
+  band.hidden = false; rail.hidden = false; document.body.classList.add("has-rail");
+  const n = M.ages.length;
+  // vodorovný pás (počítač)
+  band.innerHTML = `<div class="band-inner">
+    <div class="band-track">
+      ${M.ages.map(g => `<a class="band-age" href="#/osa/${g.key}" style="left:${pct(g.i / n)};width:${pct(1 / n)}" title="${esc(g.name)} · ${esc(ageRange(g))}"><span>${ROMAN[g.i]} ${esc(g.name)}</span></a>`).join("")}
+      <div class="band-line"></div>
+      ${M.ages.flatMap(g => g.items).filter(x => x.endG).map(x => `<span class="band-span${relClass(R, x.a.id)}" style="left:${pct(x.startG)};width:${pct(Math.max(.002, x.endG - x.startG))}"></span>`).join("")}
+      ${M.ages.flatMap(g => g.items).map(x => `<a class="band-dot${relClass(R, x.a.id)}" href="#/clanek/${enc(x.a.id)}" style="left:${pct(x.g)}" data-label="${esc(evLabel(x))}${x.w.year != null ? " · " + esc(fmtEvent(x.w)) : ""}" aria-label="${esc(evLabel(x))}, ${esc(fmtEvent(x.w))}"></a>`).join("")}
+      <span class="band-now" style="left:${pct(M.nowG)}" title="Dnes: ${esc(fmtYearM(CURRENT_YEAR))}"></span>
+    </div>
+    <a class="band-all" href="#/osa">Celá osa</a>
+  </div>`;
+  // svislý pruh (telefon)
+  rail.innerHTML = `${M.ages.map(g => `<span class="rail-age" style="top:${pct(g.i / n)};height:${pct(1 / n)}"><b>${g.key}</b></span>`).join("")}
+    ${M.ages.flatMap(g => g.items).map(x => `<i class="rail-dot${relClass(R, x.a.id)}" style="top:${pct(x.g)}"></i>`).join("")}
+    <i class="rail-now" style="top:${pct(M.nowG)}"></i>`;
+  if (!$("#drawer").hidden) fillDrawer();
+}
+
+function verticalTimeline(M, R, idPrefix){
+  return `<ol class="vt">${M.ages.map(g => `
+    <li class="vt-age" id="${idPrefix}${g.key}">
+      <div class="vt-age-head"><span class="vt-roman">${ROMAN[g.i]}</span><div><strong>${esc(g.name)}</strong><small>${esc(ageRange(g))}</small></div></div>
+      <ol class="vt-items">${g.items.length ? g.items.map(x => `
+        <li class="vt-item${relClass(R, x.a.id)}${x.endG ? " span" : ""}"><a href="#/clanek/${enc(x.a.id)}">
+          ${x.w.year != null ? `<small class="vt-date">${esc(fmtEvent(x.w))}</small>` : ""}<strong>${esc(evLabel(x))}</strong>${x.a.body ? `<span class="ex">${esc(excerpt(x.a.body, 120))}</span>` : ""}</a></li>`).join("")
+        : `<li class="vt-empty">Zatím žádné události.</li>`}
+        ${g.to == null ? `<li class="vt-item now"><span><small class="vt-date">${esc(fmtYearM(CURRENT_YEAR))}</small><strong>Dnes</strong></span></li>` : ""}
+      </ol>
+    </li>`).join("")}</ol>`;
+}
+function horizontalTimeline(M, R){
+  const n = M.ages.length, avail = Math.max(320, (view().clientWidth || 1000) - 2), W = Math.max(avail, n * 250);
+  const CARD = 176, LANE = 74;
+  const items = M.ages.flatMap(g => g.items).map(x => ({ x, px: x.g * W }));
+  const lastEnd = []; let maxLane = -1;
+  items.forEach(it => {
+    let lane = 0;
+    while (lastEnd[lane] !== undefined && it.px < lastEnd[lane] + 10) lane++;
+    lastEnd[lane] = it.px + CARD; it.lane = lane; maxLane = Math.max(maxLane, lane);
+  });
+  const above = Math.ceil((maxLane + 1) / 2), below = Math.floor((maxLane + 1) / 2);
+  const axisY = 76 + Math.max(1, above) * LANE, H = axisY + 24 + Math.max(1, below) * LANE + 10;
+  return `<div class="ht" style="height:${H}px"><div class="ht-inner" style="width:${W}px;height:${H}px">
+    ${M.ages.map(g => `<a class="ht-age" id="hage-${g.key}" href="#/osa/${g.key}" style="left:${g.i / n * W}px;width:${W / n}px"><span class="vt-roman">${ROMAN[g.i]}</span> <strong>${esc(g.name)}</strong><small>${esc(ageRange(g))}</small></a>`).join("")}
+    <div class="ht-axis" style="top:${axisY}px"></div>
+    ${items.filter(it => it.x.endG).map(it => `<span class="ht-span${relClass(R, it.x.a.id)}" style="top:${axisY - 4}px;left:${it.x.startG * W}px;width:${Math.max(3, (it.x.endG - it.x.startG) * W)}px"></span>`).join("")}
+    ${items.map(it => {
+      const up = it.lane % 2 === 0, k = Math.floor(it.lane / 2);
+      const top = up ? axisY - 14 - (k + 1) * LANE + 10 : axisY + 24 + k * LANE;
+      const stem = up ? `top:${top + LANE - 18}px;height:${axisY - (top + LANE - 18)}px` : `top:${axisY}px;height:${top - axisY}px`;
+      return `<span class="ht-stem${relClass(R, it.x.a.id)}" style="left:${it.px}px;${stem}"></span><i class="ht-dot${relClass(R, it.x.a.id)}" style="left:${it.px}px;top:${axisY}px"></i>
+        <a class="ht-card${relClass(R, it.x.a.id)}" href="#/clanek/${enc(it.x.a.id)}" style="left:${it.px - 8}px;top:${top}px;width:${CARD}px">${it.x.w.year != null ? `<small>${esc(fmtEvent(it.x.w))}</small>` : ""}<strong>${esc(evLabel(it.x))}</strong></a>`;
+    }).join("")}
+    <span class="ht-now" style="left:${M.nowG * W}px;top:${axisY - 16}px" title="Dnes"></span>
+  </div></div>`;
+}
+function timelineView(v, ageKey){
+  const M = timelineModel(), R = null;
+  v.innerHTML = `
+    <div class="head"><span class="eyebrow"><a href="#/">MalenorWiki</a></span><h1>Historická osa</h1>
+      <p class="lede">Události se na osu dostanou z článků, které mají vyplněné datum. Klepnutím na událost otevřeš článek.</p></div>
+    ${M.count === 0 ? `<p class="notice">Na ose zatím nic není.${S.admin ? ` Můžeš nahrát ${SEED_EVENTS.length} událostí z dokumentu Historická osa Malenoru jako články v sekci Dějiny. <span class="row" style="margin-top:8px"><button type="button" class="primary" id="seedBtn">Nahrát události</button></span>` : " Datum přidáš v editoru článku."}</p>` : ""}
+    <div class="ht-wrap">${horizontalTimeline(M, R)}</div>
+    <div class="vt-wrap">${verticalTimeline(M, R, "age-")}</div>`;
+  if (ageKey){ const el = document.getElementById(window.matchMedia("(min-width: 900px)").matches ? "hage-" + ageKey : "age-" + ageKey); if (el) el.scrollIntoView({ block: "nearest", inline: "start" }); }
+  const sb = $("#seedBtn"); if (sb) sb.onclick = seedTimeline;
+}
+
+// mobilní vysouvací osa
+function openDrawer(){ fillDrawer(); $("#drawer").hidden = false; $("#scrim").hidden = false; $("#rail").setAttribute("aria-expanded", "true");
+  const c = $("#drawerBody .vt-item.cur") || $("#drawerBody .vt-item.rel"); if (c) c.scrollIntoView({ block: "center" }); }
+function closeDrawer(){ const d = $("#drawer"); if (!d || d.hidden) return; d.hidden = true; $("#scrim").hidden = true; $("#rail").setAttribute("aria-expanded", "false"); }
+function fillDrawer(){ const M = timelineModel(), rel = relatedSet(); $("#drawerBody").innerHTML = verticalTimeline(M, rel, "dage-"); }
+$("#rail").addEventListener("click", openDrawer);
+$("#drawerClose").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+new ResizeObserver(() => document.documentElement.style.setProperty("--hdr", $(".top").offsetHeight + "px")).observe($(".top"));
+let wideMq = window.matchMedia("(min-width: 900px)");
+wideMq.addEventListener("change", () => { if (route()[0] === "osa" && !S.editing) renderMain(); });
+
+// editor: datum na ose
+function whenFieldsHTML(w){
+  w = cleanWhen(w);
+  const on = !!w, y = w && w.year != null ? w.year : null, e = w && w.end != null ? w.end : null;
+  const era = v => v != null && v < 0 ? "-1" : "1";
+  const eraSel = (id, v) => `<select id="${id}" aria-label="Letopočet"><option value="-1"${era(v) === "-1" ? " selected" : ""}>př.v.v.</option><option value="1"${era(v) === "1" ? " selected" : ""}>p.v.v.</option></select>`;
+  return `<fieldset class="whenbox" id="whenBox">
+    <legend>Na historické ose</legend>
+    <label class="chk"><input type="checkbox" id="wOn"${on ? " checked" : ""}> Zobrazit na ose</label>
+    <div class="when-grid" id="wFields"${on ? "" : " hidden"}>
+      <div class="field"><label for="wYear">Rok</label><div class="row nowrap"><input type="number" id="wYear" min="0" inputmode="numeric" value="${y != null ? Math.abs(y) : ""}">${eraSel("wEra", y)}</div></div>
+      <div class="field"><label for="wEnd">Trvalo do roku</label><div class="row nowrap"><input type="number" id="wEnd" min="0" inputmode="numeric" value="${e != null ? Math.abs(e) : ""}">${eraSel("wEndEra", e)}</div></div>
+      <div class="field"><label for="wM">Tvář</label><select id="wM"><option value="">—</option>${MONTHS.map((m, i) => `<option value="${i}"${w && w.m === i ? " selected" : ""}>${i + 1}. ${m}</option>`).join("")}</select></div>
+      <div class="field"><label for="wD">Den</label><input type="number" id="wD" min="1" max="30" inputmode="numeric" value="${w && w.d != null ? w.d : ""}"></div>
+      <div class="field"><label for="wAge">Věk</label><select id="wAge"><option value="">Podle roku</option>${AGES.map(g => `<option value="${g.key}"${w && w.age === g.key ? " selected" : ""}>${ROMAN[AGE_IX[g.key]]} ${esc(g.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="wOrder">Pořadí ve věku</label><input type="number" id="wOrder" inputmode="numeric" value="${w && w.order != null ? w.order : ""}" placeholder="jen bez roku"></div>
+      <label class="chk"><input type="checkbox" id="wApprox"${w && w.approx ? " checked" : ""}> přibližně (cca)</label>
+      <div class="field wide"><label for="wLabel">Popisek na ose</label><input type="text" id="wLabel" maxlength="80" value="${esc(w && w.label || "")}" placeholder="nepovinné, jinak se použije název článku"></div>
+    </div>
+    <p class="hint" id="wPreview"></p>
+  </fieldset>`;
+}
+function readWhen(){
+  if (!$("#wOn") || !$("#wOn").checked) return null;
+  const val = id => $(id).value.trim();
+  const yr = (id, eraId) => { const v = val(id); if (v === "" || !Number.isFinite(+v)) return null; return Math.abs(Math.trunc(+v)) * (+$(eraId).value < 0 ? -1 : 1); };
+  return cleanWhen({ year: yr("#wYear", "#wEra"), end: yr("#wEnd", "#wEndEra"), m: val("#wM"), d: val("#wD"), age: val("#wAge") || null,
+    order: val("#wOrder"), approx: $("#wApprox").checked, label: val("#wLabel") });
+}
+function updateWhenUI(){
+  const on = $("#wOn"); if (!on) return;
+  $("#wFields").hidden = !on.checked;
+  const w = readWhen(), p = $("#wPreview");
+  if (!on.checked){ p.textContent = ""; return; }
+  if (!w){ p.textContent = "Zadej rok, nebo aspoň vyber věk."; return; }
+  const g = eventAge(w);
+  p.textContent = `Na ose: ${g ? g.name + " · " : ""}${fmtEvent(w)}`;
+}
+
+// import událostí z dokumentu Historická osa Malenoru
+const SEED_EVENTS = [
+  ["I", "Dopad Korinského impaktoru"], ["I", "Doba ledová"], ["I", "Vymírání ras / zánik prvního světa"],
+  ["II", "Zachycení Garusu na oběžné dráze Malenoru", { year: -52002 }], ["II", "Vystavění létajícího města Sartixikathum"], ["II", "První vpád ze Stínozemí"], ["II", "Prokletí drow"], ["II", "Runové války a zničení světotvorných run"],
+  ["III", "Otevření průrvy a příchod lidí"], ["III", "Vznik nových říší"], ["III", "Stavba dračího města na Rigusu"], ["III", "Válka křídel a pěstí"], ["III", "Zasazení sporu elfů a trpaslíků"],
+  ["IV", "Ďábelsko-démonický vpád na Korin"], ["IV", "Odchod tieflingů na Talju"], ["IV", "Vznik technomagických věží"], ["IV", "Vrchol lidských říší a technomagického věku"], ["IV", "Velká válka", { year: -593, end: 0 }],
+  ["V", "Konec Velké války", { year: 0 }], ["V", "Založení Korinského Triarchátu"], ["V", "Ustanovení Pretoriánů jako soudní a výkonné moci"], ["V", "Ustanovení správcovských měst a jmenování správců"], ["V", "Současné napětí a návrat starých hrozeb"]
+];
+async function seedTimeline(e){
+  const btn = e.currentTarget; btn.disabled = true;
+  try {
+    const ts = serverTimestamp(), uid = S.user.uid, name = myName(), b = writeBatch(db);
+    const order = {};
+    let created = 0;
+    for (const [age, title, extra] of SEED_EVENTS){
+      order[age] = (order[age] || 0) + 1;
+      const existing = S.titleIndex.get(norm(title));
+      const when = cleanWhen({ age, order: order[age], ...(extra || {}) });
+      if (existing){ if (!S.articles.get(existing).when) b.update(doc(db, "articles", existing), { when }); continue; }
+      b.set(doc(collection(db, "articles")), { title, section: "dejiny", tags: [], body: "", when,
+        createdAt: ts, createdBy: uid, createdByName: name, updatedAt: ts, updatedBy: uid, updatedByName: name, contributors: [uid] });
+      created++;
+    }
+    await b.commit();
+    toast(`Nahráno ${created} událostí.`);
+  } catch (err){ toast(errText(err), "err"); btn.disabled = false; }
 }
 
 render();
