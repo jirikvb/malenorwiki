@@ -13,6 +13,7 @@
   --ins:#2c6a6026;
   --del:#a2433b22;
   --sel:#2c6a6018;
+  --pd-night:#36425e;--pd-dawn:#c9986a;--pd-morn:#d8c592;--pd-noon:#c3962c;--pd-aft:#9db188;--pd-dusk:#a2646b;
   --font-display:"Cormorant Garamond","Cormorant",Garamond,"Times New Roman",serif;
   --font-body:"Alegreya",Georgia,"Times New Roman",serif;
   --font-label:"Alegreya Sans SC","Alegreya Sans","Gill Sans",system-ui,sans-serif;
@@ -23,6 +24,7 @@
     --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
     --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
     --ins:#7cc0b030;--del:#e0877d2a;--sel:#7cc0b01c;
+    --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
     color-scheme:dark;
   }
 }
@@ -30,6 +32,7 @@
   --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
   --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
   --ins:#7cc0b030;--del:#e0877d2a;--sel:#7cc0b01c;
+  --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -85,6 +88,15 @@ button:disabled{opacity:.55;cursor:default}
 input[type=text],input[type=search],select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:8px 10px;width:100%;min-width:0}
 textarea{min-height:52vh;line-height:1.55;resize:vertical;font-family:var(--font-body)}
 .hint{font-size:14px;color:var(--muted);margin:0}
+
+/* časinka */
+.clockbar{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}
+.clk{display:flex;align-items:center;gap:12px;min-width:0}
+.clk svg{width:84px;height:84px;flex:none}
+.clk div{display:flex;flex-direction:column;gap:1px}
+.clk strong{font-family:var(--font-display);font-weight:700;font-size:1.65rem;line-height:1;font-variant-numeric:tabular-nums}
+.clk .part{font-size:14px;color:var(--gold)}
+@media (max-width:420px){.clk svg{width:64px;height:64px}.clk strong{font-size:1.4rem}.clockbar{gap:12px 18px}}
 
 /* karty sekcí */
 .sections{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}

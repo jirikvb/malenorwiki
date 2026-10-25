@@ -5,8 +5,8 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=2";
-import { ADMIN_UIDS, SECTIONS } from "./site-config.js?v=2";
+import { firebaseConfig } from "./firebase-config.js?v=3";
+import { ADMIN_UIDS, SECTIONS } from "./site-config.js?v=3";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -259,6 +259,7 @@ function home(v){
         : (mine ? `Máš ${mine} ${plural(mine, "otevřený návrh", "otevřené návrhy", "otevřených návrhů")}.` : "Najdi článek, nebo navrhni nový.")}</p>
     </div>
     ${S.admin && S.requests.size ? `<p class="notice"><a href="#/clenove">${S.requests.size} ${plural(S.requests.size, "člověk čeká", "lidé čekají", "lidí čeká")} na schválení</a></p>` : ""}
+    ${clockHTML()}
     <div class="sections">
       ${SECTIONS.map(s => `<a class="sec" href="#/sekce/${s.key}"><strong>${esc(s.name)}</strong><span>${esc(s.desc)}</span><em>${counts[s.key] || 0} ${plural(counts[s.key] || 0, "článek", "články", "článků")}</em></a>`).join("")}
     </div>
@@ -267,7 +268,53 @@ function home(v){
       ${recent.length ? `<ul class="list">${recent.map(a => `<li><a class="item" href="#/clanek/${enc(a.id)}"><strong>${esc(a.title)}</strong><small>${esc(sectionOf(a.section).name)} · ${fmtWhen(a.updatedAt)}${a.updatedByName ? " · " + esc(a.updatedByName) : ""}</small></a></li>`).join("")}</ul>`
         : `<p class="muted">Wiki je zatím prázdná. ${S.admin ? "Založ první článek tlačítkem vpravo." : "Navrhni první článek."}</p>`}
     </section>`;
+  tickClock();
 }
+
+// --- Časinka na úvodu ---
+// Den = 30 kroků, krok = 100 dechů, dech = 30 tepů. Pozemská půlnoc = malenorská půlnoc, poledne = Pál (krok 15).
+const TEP_DAY = 90000, TEP_KROK = 3000, TEP_DECH = 30;
+const DAY_PARTS = [["Stín / Noc", 0, 6], ["Záhlav", 6, 8], ["Vzestup", 8, 14], ["Pál", 14, 16], ["Sklon", 16, 22], ["Soumrak", 22, 25], ["Stín / Noc", 25, 30]];
+const PART_COLORS = ["var(--pd-night)", "var(--pd-dawn)", "var(--pd-morn)", "var(--pd-noon)", "var(--pd-aft)", "var(--pd-dusk)", "var(--pd-night)"];
+const pad2 = n => String(n).padStart(2, "0");
+function pol(r, deg){ const a = (deg - 90) * Math.PI / 180; return [(50 + r * Math.cos(a)).toFixed(2), (50 + r * Math.sin(a)).toFixed(2)]; }
+function arc(r0, r1, d0, d1){
+  const [a, b] = pol(r1, d0), [c, d] = pol(r1, d1), [e, f] = pol(r0, d1), [g, h] = pol(r0, d0), big = d1 - d0 > 180 ? 1 : 0;
+  return `M${a} ${b}A${r1} ${r1} 0 ${big} 1 ${c} ${d}L${e} ${f}A${r0} ${r0} 0 ${big} 0 ${g} ${h}Z`;
+}
+let clockFaces = null;
+function faces(){
+  if (clockFaces) return clockFaces;
+  let e = `<circle cx="50" cy="50" r="47" fill="var(--surface)" stroke="var(--rule)"/>`;
+  for (let i = 0; i < 60; i += 5){ const [x1, y1] = pol(44, i * 6), [x2, y2] = pol(i % 15 ? 41 : 38, i * 6); e += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--muted)" stroke-width="${i % 15 ? .7 : 1.4}"/>`; }
+  let m = `<circle cx="50" cy="50" r="47" fill="var(--surface)" stroke="var(--rule)"/>`;
+  DAY_PARTS.forEach((p, i) => { m += `<path d="${arc(42, 47, p[1] * 12, p[2] * 12)}" fill="${PART_COLORS[i]}" opacity=".85"/>`; });
+  for (let k = 0; k < 30; k += 3){ const [x1, y1] = pol(41, k * 12), [x2, y2] = pol(k % 15 ? 38 : 35, k * 12); m += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--muted)" stroke-width="${k % 15 ? .8 : 1.6}"/>`; }
+  const hands = (p, accent) => `<line id="${p}1" x1="50" y1="50" x2="50" y2="27" stroke="var(--ink)" stroke-width="3.2" stroke-linecap="round"/><line id="${p}2" x1="50" y1="50" x2="50" y2="15" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round"/><line id="${p}3" x1="50" y1="56" x2="50" y2="11" stroke="${accent}" stroke-width=".9"/><circle cx="50" cy="50" r="2.2" fill="${accent}"/>`;
+  clockFaces = { earth: e + hands("hcE", "var(--accent)"), mal: m + hands("hcM", "var(--accent)") };
+  return clockFaces;
+}
+function clockHTML(){
+  const f = faces();
+  return `<section class="clockbar" aria-label="Časinka">
+    <div class="clk"><svg viewBox="0 0 100 100" aria-hidden="true">${f.earth}</svg><div><span class="lbl">Země</span><strong id="hcEt">--:--:--</strong></div></div>
+    <div class="clk"><svg viewBox="0 0 100 100" aria-hidden="true">${f.mal}</svg><div><span class="lbl">Malenor</span><strong id="hcMt">--:--:--</strong><span class="part" id="hcMp"></span></div></div>
+  </section>`;
+}
+function setRot(id, deg){ const el = document.getElementById(id); if (el) el.setAttribute("transform", `rotate(${deg.toFixed(2)} 50 50)`); }
+function tickClock(){
+  if (!document.getElementById("hcEt")) return;
+  const n = new Date(), sec = n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds() + n.getMilliseconds() / 1000;
+  const teps = sec / 86400 * TEP_DAY;
+  setRot("hcE1", sec / 43200 * 360); setRot("hcE2", (sec % 3600) / 3600 * 360); setRot("hcE3", Math.floor(sec % 60) * 6);
+  setRot("hcM1", teps / TEP_DAY * 360); setRot("hcM2", (teps % TEP_KROK) / TEP_KROK * 360); setRot("hcM3", Math.floor(teps % TEP_DECH) * 12);
+  const t = Math.floor(teps), k = Math.floor(t / TEP_KROK), d = Math.floor((t % TEP_KROK) / TEP_DECH), tp = t % TEP_DECH;
+  document.getElementById("hcEt").textContent = `${pad2(n.getHours())}:${pad2(n.getMinutes())}:${pad2(n.getSeconds())}`;
+  document.getElementById("hcMt").textContent = `${pad2(k)}:${pad2(d)}:${pad2(tp)}`;
+  const part = DAY_PARTS.find(p => teps / TEP_KROK >= p[1] && teps / TEP_KROK < p[2]);
+  document.getElementById("hcMp").textContent = part ? part[0] : "";
+}
+setInterval(tickClock, 250);
 function plural(n, one, few, many){ return n === 1 ? one : (n >= 2 && n <= 4 ? few : many); }
 
 // --- sekce ---
