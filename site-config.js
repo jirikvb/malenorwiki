@@ -14,6 +14,7 @@ export const SECTIONS = [
   { key: "jazyky", name: "Jazyky", desc: "Řeči, písma a slovníky" },
   { key: "cas", name: "Kalendář a čas", desc: "Tváře, svátky, časinky a dvojčata" },
   { key: "dejiny", name: "Dějiny", desc: "Události, války a věky Malenoru" },
+  { key: "kampan", name: "Deník kampaně", desc: "Zápisy ze sezení, kapitoly Kroniky" },
   { key: "ostatni", name: "Ostatní", desc: "Všechno, co se jinam nevešlo" }
 ];
 
@@ -32,3 +33,6 @@ export const CURRENT_YEAR = 422;
 
 // Tváře (měsíce) korinského kalendáře.
 export const MONTHS = ["Jas", "Nýnna", "Juron", "Tegal", "Nuros", "Věž", "Kala", "Rigis", "Regis", "Jukton", "Deela", "Stařec"];
+
+// Kniha kampaně (pohled na sekci Deník kampaně).
+export const BOOK = { title: "Kronika Malenoru", subtitle: "Deník kampaně" };

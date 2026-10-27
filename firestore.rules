@@ -53,8 +53,8 @@ service cloud.firestore {
       allow update: if isAdmin() || (isMember()
         && resource.data.author == me()
         && resource.data.status == 'open'
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['title', 'section', 'tags', 'body', 'when', 'note', 'updatedAt']));
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['author', 'authorName', 'status', 'type', 'articleId', 'createdAt', 'decidedAt', 'decidedBy', 'decisionNote']));
       allow delete: if isAdmin() || (isMember()
         && resource.data.author == me()
         && resource.data.status == 'open');

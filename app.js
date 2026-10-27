@@ -5,8 +5,8 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=5";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS } from "./site-config.js?v=5";
+import { firebaseConfig } from "./firebase-config.js?v=6";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=6";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -189,6 +189,7 @@ function renderChrome(){
     link("#/", "Domů", cur === ""),
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
     link("#/osa", "Osa", cur === "osa"),
+    link("#/kniha", "Kniha", cur === "kniha"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
     link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
@@ -216,6 +217,7 @@ function renderMain(){
     case "historie": return historyView(v, r[1]);
     case "osa": return timelineView(v, r[1]);
     case "kalendar": return calendarView(v);
+    case "kniha": return bookView(v, r[1]);
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }
@@ -326,15 +328,16 @@ function plural(n, one, few, many){ return n === 1 ? one : (n >= 2 && n <= 4 ? f
 // --- sekce ---
 function sectionView(v, key){
   const sec = sectionOf(key);
-  const arts = [...S.articles.values()].filter(a => a.section === key).sort(byTitle);
+  const arts = [...S.articles.values()].filter(a => a.section === key).sort(key === "kampan" ? byChapter : byTitle);
   v.innerHTML = `
     <div class="head">
       <span class="eyebrow"><a href="#/">MalenorWiki</a> · sekce</span>
       <div class="spread"><h1>${esc(sec.name)}</h1><a class="btn" href="#/novy/${enc(key)}">${S.admin ? "Nový článek" : "Navrhnout článek"}</a></div>
       ${sec.desc ? `<p class="lede">${esc(sec.desc)}</p>` : ""}
       ${key === "cas" ? `<p><a class="btn" href="#/kalendar">Otevřít převodník kalendáře a Časinku</a></p>` : ""}
+      ${key === "kampan" ? `<p><a class="btn primary" href="#/kniha">Otevřít knihu</a></p>` : ""}
     </div>
-    ${arts.length ? `<ul class="list">${arts.map(a => `<li><a class="item" href="#/clanek/${enc(a.id)}"><strong>${esc(a.title)}</strong>${a.body ? `<span class="ex">${esc(excerpt(a.body))}</span>` : ""}</a></li>`).join("")}</ul>`
+    ${arts.length ? `<ul class="list">${arts.map(a => `<li><a class="item" href="#/clanek/${enc(a.id)}"><strong>${a.session && a.session.no != null ? `<span class="muted">${a.session.no}.</span> ` : ""}${esc(a.title)}</strong>${a.session ? `<small>${esc(sessionMeta(a.session))}</small>` : ""}${a.body ? `<span class="ex">${esc(excerpt(a.body))}</span>` : ""}</a></li>`).join("")}</ul>`
       : `<p class="muted">V této sekci zatím nejsou žádné články.</p>`}`;
 }
 
@@ -353,7 +356,9 @@ function articleView(v, id){
       <h1>${esc(a.title)}</h1>
       ${a.when && eventAge(a.when) ? `<p class="when-line"><a href="#/osa/${enc(eventAge(a.when).key)}">${esc(eventAge(a.when).name)}</a> · ${esc(fmtEvent(a.when))}</p>` : ""}
       ${(a.tags || []).length ? `<div class="tags">${a.tags.map(t => `<a class="tag" href="#/hledat/${enc(t)}">${esc(t)}</a>`).join("")}</div>` : ""}
+      ${a.session ? `<p class="when-line">${esc(sessionMeta(a.session, true))}</p>` : ""}
     </div>
+    ${a.session && a.session.image ? `<figure class="scene"><img src="${esc(imgUrl(a.session.image))}" alt="${esc(a.session.caption || a.title)}" referrerpolicy="no-referrer">${a.session.caption ? `<figcaption>${esc(a.session.caption)}</figcaption>` : ""}</figure>` : ""}
     ${props.length ? `<p class="notice">K tomuto článku ${props.length === 1 ? "je otevřený" : "jsou otevřené"} ${props.length} ${plural(props.length, "návrh", "návrhy", "návrhů")}: ${props.map(p => `<a href="#/navrh/${enc(p.id)}">${esc(p.authorName || "návrh")}</a>`).join(", ")}</p>` : ""}
     <div class="layout">
       <article class="md">${a.body ? renderMd(a.body) : `<p class="muted">Článek zatím nemá text.</p>`}</article>
@@ -361,6 +366,7 @@ function articleView(v, id){
         <div class="row">
           <a class="btn primary" href="#/upravit/${enc(id)}">${S.admin ? "Upravit" : "Navrhnout úpravu"}</a>
           <a class="btn" href="#/historie/${enc(id)}">Historie</a>
+          ${a.section === "kampan" ? `<a class="btn" href="#/kniha/${enc(id)}">Číst v knize</a>` : ""}
         </div>
         <div><h3>Naposledy upraveno</h3>${fmtWhen(a.updatedAt)}${a.updatedByName ? `<br>${esc(a.updatedByName)}` : ""}${contributors > 1 ? `<br><span class="muted">${contributors} přispěvatelé</span>` : ""}</div>
         ${backlinks.length ? `<div><h3>Odkazuje sem</h3><ul>${backlinks.map(b => `<li><a href="#/clanek/${enc(b.id)}">${esc(b.title)}</a></li>`).join("")}</ul></div>` : ""}
@@ -407,14 +413,14 @@ function showRevision(id, r){
   });
   box.scrollIntoView({ block: "start" });
   if (S.admin) $("#restore").onclick = async () => {
-    try { await saveArticle(cur ? id : null, { title: r.title, section: r.section || "ostatni", tags: r.tags || [], body: r.body || "", when: r.when || null }, "obnoveno ze starší verze", cur ? null : id); toast("Verze obnovena."); go(`#/clanek/${enc(id)}`); }
+    try { await saveArticle(cur ? id : null, { title: r.title, section: r.section || "ostatni", tags: r.tags || [], body: r.body || "", when: r.when || null, session: r.session || null }, "obnoveno ze starší verze", cur ? null : id); toast("Verze obnovena."); go(`#/clanek/${enc(id)}`); }
     catch (e) { toast(errText(e), "err"); }
   };
 }
 
 // --- ukládání ---
 function revisionOf(a, reason){
-  return { title: a.title || "", section: a.section || "", tags: a.tags || [], body: a.body || "", when: a.when || null, savedAt: a.updatedAt || null,
+  return { title: a.title || "", section: a.section || "", tags: a.tags || [], body: a.body || "", when: a.when || null, session: a.session || null, savedAt: a.updatedAt || null,
     by: a.updatedBy || null, byName: a.updatedByName || "", archivedAt: serverTimestamp(), reason: reason || "" };
 }
 async function saveArticle(id, data, reason, forceId){
@@ -456,12 +462,12 @@ function clearDraft(){ if (!draftKey) return; try { localStorage.removeItem(draf
 
 // --- editor ---
 function editorView(v, mode){
-  let base = { title: mode.title || "", section: mode.section || "", tags: [], body: "", when: null }, heading, submitLabel, eyebrow = "";
+  let base = { title: mode.title || "", section: mode.section || "", tags: [], body: "", when: null, session: null }, heading, submitLabel, eyebrow = "";
   let article = null, proposal = null;
   if (mode.kind === "article"){
     article = S.articles.get(mode.id);
     if (!article) return notFound(v, "Článek k úpravě neexistuje.");
-    base = { title: article.title, section: article.section, tags: article.tags || [], body: article.body || "", when: cleanWhen(article.when) };
+    base = { title: article.title, section: article.section, tags: article.tags || [], body: article.body || "", when: cleanWhen(article.when), session: cleanSession(article.session) };
     heading = S.admin ? "Úprava článku" : "Návrh úpravy";
     submitLabel = S.admin ? "Uložit" : "Odeslat návrh";
     eyebrow = `<a href="#/clanek/${enc(article.id)}">${esc(article.title)}</a>`;
@@ -473,7 +479,7 @@ function editorView(v, mode){
     if (!proposal) return notFound(v, "Tento návrh neexistuje.");
     if (mode.kind === "proposal" && !(proposal.author === S.user.uid && proposal.status === "open")) return notFound(v, "Tento návrh už upravit nejde.");
     if (mode.kind === "approve" && !(S.admin && proposal.status === "open")) return notFound(v, "Tento návrh už nejde schválit.");
-    base = { title: proposal.title, section: proposal.section, tags: proposal.tags || [], body: proposal.body || "", when: cleanWhen(proposal.when) };
+    base = { title: proposal.title, section: proposal.section, tags: proposal.tags || [], body: proposal.body || "", when: cleanWhen(proposal.when), session: cleanSession(proposal.session) };
     heading = mode.kind === "approve" ? "Upravit a schválit" : "Úprava návrhu";
     submitLabel = mode.kind === "approve" ? "Schválit s úpravami" : "Uložit návrh";
     eyebrow = `<a href="#/navrh/${enc(proposal.id)}">návrh od ${esc(proposal.authorName || "?")}</a>`;
@@ -481,8 +487,8 @@ function editorView(v, mode){
   if (!base.section) base.section = SECTIONS[0].key;
   draftKey = `malenorwiki:koncept:${S.user.uid}:${mode.kind}:${mode.id || mode.section || "_"}:${mode.title || ""}`;
   const draft = loadDraft();
-  const restored = draft && (draft.body !== base.body || draft.title !== base.title || whenKey(draft.when) !== whenKey(base.when));
-  const start = restored ? { title: draft.title, section: draft.section || base.section, tags: draft.tags || base.tags, body: draft.body, when: draft.when === undefined ? base.when : cleanWhen(draft.when) } : base;
+  const restored = draft && (draft.body !== base.body || draft.title !== base.title || whenKey(draft.when) !== whenKey(base.when) || sessionKey(draft.session) !== sessionKey(base.session));
+  const start = restored ? { title: draft.title, section: draft.section || base.section, tags: draft.tags || base.tags, body: draft.body, when: draft.when === undefined ? base.when : cleanWhen(draft.when), session: draft.session === undefined ? base.session : cleanSession(draft.session) } : base;
   const needNote = !S.admin && (mode.kind === "article" || mode.kind === "new" || mode.kind === "proposal");
 
   S.editing = true;
@@ -500,6 +506,7 @@ function editorView(v, mode){
       </div>
       <div class="field"><label for="edTags">Štítky, oddělené čárkou</label><input type="text" id="edTags" value="${esc((start.tags || []).join(", "))}" placeholder="např. Triarchát, Velká válka"></div>
       <p class="hint" id="dupHint" hidden></p>
+      ${sessionFieldsHTML(start.session, start.section)}
       ${whenFieldsHTML(start.when)}
       <div class="tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" id="tabWrite">Psát</button>
@@ -530,11 +537,13 @@ function editorView(v, mode){
     </form>`;
 
   const title = $("#edTitle"), section = $("#edSection"), tags = $("#edTags"), body = $("#edBody");
-  const current = () => ({ title: title.value.trim(), section: section.value, tags: parseTags(tags.value), body: body.value, when: readWhen() });
-  const isChanged = () => { const c = current(); return c.title !== base.title || c.section !== base.section || c.body !== base.body || c.tags.join("|") !== (base.tags || []).join("|") || whenKey(c.when) !== whenKey(base.when); };
+  const current = () => ({ title: title.value.trim(), section: section.value, tags: parseTags(tags.value), body: body.value, when: readWhen(), session: section.value === "kampan" ? readSession() : null });
+  const isChanged = () => { const c = current(); return c.title !== base.title || c.section !== base.section || c.body !== base.body || c.tags.join("|") !== (base.tags || []).join("|") || whenKey(c.when) !== whenKey(base.when) || sessionKey(c.session) !== sessionKey(base.session); };
   const onInput = () => { S.dirty = isChanged(); saveDraft(current()); checkDup(); updateWhenUI(); };
   [title, section, tags, body].forEach(el => el.addEventListener("input", onInput));
-  v.querySelectorAll("#whenBox input, #whenBox select").forEach(el => { el.addEventListener("input", onInput); el.addEventListener("change", onInput); });
+  v.querySelectorAll("#whenBox input, #whenBox select, #sessBox input").forEach(el => { el.addEventListener("input", onInput); el.addEventListener("change", onInput); });
+  section.addEventListener("change", () => { $("#sessBox").hidden = section.value !== "kampan"; onInput(); });
+  $("#wOn").addEventListener("change", () => { const s = section.value === "kampan" ? readSession() : null; if ($("#wOn").checked && s && s.year != null && !$("#wYear").value){ $("#wYear").value = s.year; $("#wEra").value = "1"; if (s.m != null) $("#wM").value = s.m; if (s.d != null) $("#wD").value = s.d; onInput(); } });
   updateWhenUI();
   S.dirty = restored ? true : false;
   function checkDup(){
@@ -571,7 +580,7 @@ function editorView(v, mode){
       } else {
         const ref = doc(collection(db, "proposals"));
         await setDoc(ref, { ...data, type: article ? "edit" : "new", articleId: article ? article.id : null,
-          baseTitle: article ? article.title : "", baseSection: article ? article.section : "", baseTags: article ? (article.tags || []) : [], baseBody: article ? (article.body || "") : "", baseWhen: article ? (article.when || null) : null,
+          baseTitle: article ? article.title : "", baseSection: article ? article.section : "", baseTags: article ? (article.tags || []) : [], baseBody: article ? (article.body || "") : "", baseWhen: article ? (article.when || null) : null, baseSession: article ? (article.session || null) : null,
           baseUpdatedMs: article ? tsMs(article.updatedAt) : 0, note, author: S.user.uid, authorName: myName(), status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         toast("Návrh odeslán vypravěči."); dest = `#/navrh/${enc(ref.id)}`;
       }
@@ -637,6 +646,8 @@ function proposalView(v, id){
     if ((p.tags || []).join("|") !== oldTags.join("|")) meta.push(`Štítky: ${esc(oldTags.join(", ") || "žádné")} → ${esc((p.tags || []).join(", ") || "žádné")}`);
     const oldWhen = art ? art.when : p.baseWhen;
     if (whenKey(oldWhen) !== whenKey(p.when)) meta.push(`Na ose: ${esc(whenSummary(oldWhen))} → ${esc(whenSummary(p.when))}`);
+    const oldSess = art ? art.session : p.baseSession;
+    if (sessionKey(oldSess) !== sessionKey(p.session)) meta.push(`Údaje sezení: ${esc(oldSess ? sessionMeta(cleanSession(oldSess), true) : "žádné")} → ${esc(p.session ? sessionMeta(cleanSession(p.session), true) : "žádné")}${(cleanSession(p.session) || {}).image !== (cleanSession(oldSess) || {}).image ? " · změněný obrázek" : ""}`);
   } else if (p.when) meta.push(`Na ose: ${esc(whenSummary(p.when))}`);
   const mine = p.author === S.user.uid;
   v.innerHTML = `
@@ -665,7 +676,7 @@ function proposalView(v, id){
     acts.innerHTML = `<button type="button" class="primary" id="pApprove">Schválit</button><a class="btn" href="#/navrh/${enc(id)}/schvalit">Upravit a schválit</a><button type="button" class="danger" id="pReject">Zamítnout</button>`;
     $("#pApprove").onclick = async e => {
       e.currentTarget.disabled = true;
-      try { const artId = await applyProposal(p, { title: p.title, section: p.section, tags: p.tags || [], body: p.body || "", when: cleanWhen(p.when) }); toast("Návrh schválen."); go(`#/clanek/${enc(artId)}`); }
+      try { const artId = await applyProposal(p, { title: p.title, section: p.section, tags: p.tags || [], body: p.body || "", when: cleanWhen(p.when), session: cleanSession(p.session) }); toast("Návrh schválen."); go(`#/clanek/${enc(artId)}`); }
       catch (err){ toast(errText(err), "err"); e.currentTarget.disabled = false; }
     };
     $("#pReject").onclick = () => {
@@ -983,6 +994,313 @@ function updateWhenUI(){
   const g = eventAge(w);
   p.textContent = `Na ose: ${g ? g.name + " · " : ""}${fmtEvent(w)}`;
 }
+
+// ---------- deník kampaně: údaje sezení ----------
+function imgUrl(u){
+  u = String(u || "").trim();
+  if (!/^(https?:\/\/|img\/)/i.test(u)) return "";
+  const m = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1600` : u;
+}
+function cleanSession(x){
+  if (!x || typeof x !== "object") return null;
+  const num = v => (v === "" || v == null || !Number.isFinite(+v)) ? null : Math.trunc(+v);
+  const str = (v, n) => String(v || "").trim().slice(0, n);
+  const chars = Array.isArray(x.characters) ? x.characters : String(x.characters || "").split(",");
+  const out = { adventure: str(x.adventure, 80), no: num(x.no), played: /^\d{4}-\d{2}-\d{2}$/.test(x.played || "") ? x.played : "",
+    year: num(x.year), m: num(x.m), d: num(x.d), place: str(x.place, 100),
+    characters: [...new Set(chars.map(c => String(c).trim()).filter(Boolean))].slice(0, 20),
+    image: imgUrl(x.image) ? str(x.image, 500) : "", caption: str(x.caption, 160) };
+  if (out.m != null && (out.m < 0 || out.m > 11)) out.m = null;
+  if (out.d != null && (out.d < 1 || out.d > 30)) out.d = null;
+  if (out.year == null){ out.m = null; out.d = null; }
+  if (out.m == null) out.d = null;
+  const empty = !out.adventure && out.no == null && !out.played && out.year == null && !out.place && !out.characters.length && !out.image && !out.caption;
+  return empty ? null : out;
+}
+const sessionKey = x => JSON.stringify(cleanSession(x));
+function fmtGameDate(s){ if (!s || s.year == null) return ""; return (s.m != null ? (s.d ? s.d + ". " : "") + MONTHS[s.m] + " " : "") + fmtYearM(s.year); }
+function fmtPlayed(iso){ const [y, m, d] = String(iso).split("-"); return y ? `${+d}. ${+m}. ${y}` : ""; }
+function sessionMeta(s, long){
+  s = cleanSession(s); if (!s) return "";
+  const parts = [];
+  if (s.adventure) parts.push(s.adventure);
+  if (s.no != null) parts.push(`sezení ${s.no}`);
+  if (s.year != null) parts.push(fmtGameDate(s));
+  if (s.place) parts.push(s.place);
+  if (long && s.played) parts.push(`hráno ${fmtPlayed(s.played)}`);
+  if (long && s.characters.length) parts.push(s.characters.join(", "));
+  return parts.join(" · ");
+}
+function byChapter(a, b){
+  const sa = cleanSession(a.session) || {}, sb = cleanSession(b.session) || {};
+  const na = sa.no ?? 1e9, nb = sb.no ?? 1e9;
+  if (na !== nb) return na - nb;
+  const ga = sa.year != null ? sa.year * 400 + (sa.m ?? 0) * 31 + (sa.d ?? 0) : 1e12, gb = sb.year != null ? sb.year * 400 + (sb.m ?? 0) * 31 + (sb.d ?? 0) : 1e12;
+  if (ga !== gb) return ga - gb;
+  return tsMs(a.createdAt) - tsMs(b.createdAt) || byTitle(a, b);
+}
+function sessionFieldsHTML(x, sec){
+  const s = cleanSession(x) || {};
+  const advs = [...new Set([...S.articles.values()].map(a => a.session && a.session.adventure).filter(Boolean))].sort((p, q) => p.localeCompare(q, "cs"));
+  const nextNo = 1 + Math.max(0, ...[...S.articles.values()].map(a => (a.session && Number.isFinite(+a.session.no)) ? +a.session.no : 0));
+  return `<fieldset class="whenbox" id="sessBox"${sec === "kampan" ? "" : " hidden"}>
+    <legend>Údaje sezení</legend>
+    <div class="when-grid">
+      <div class="field"><label for="sAdv">Dobrodružství</label><input type="text" id="sAdv" list="advList" maxlength="80" value="${esc(s.adventure || "")}" placeholder="např. Vranov"></div>
+      <div class="field"><label for="sNo">Číslo sezení</label><input type="number" id="sNo" min="0" inputmode="numeric" value="${s.no != null ? s.no : ""}" placeholder="${nextNo}"></div>
+      <div class="field"><label for="sPlayed">Datum hraní</label><input type="date" id="sPlayed" value="${esc(s.played || "")}"></div>
+      <div class="field"><label for="sYear">Herní rok (p.v.v.)</label><input type="number" id="sYear" min="0" inputmode="numeric" value="${s.year != null ? s.year : ""}" placeholder="${CURRENT_YEAR}"></div>
+      <div class="field"><label for="sM">Tvář</label><select id="sM"><option value="">—</option>${MONTHS.map((m, i) => `<option value="${i}"${s.m === i ? " selected" : ""}>${i + 1}. ${m}</option>`).join("")}</select></div>
+      <div class="field"><label for="sD">Den</label><input type="number" id="sD" min="1" max="30" inputmode="numeric" value="${s.d != null ? s.d : ""}"></div>
+      <div class="field wide"><label for="sPlace">Místo děje</label><input type="text" id="sPlace" maxlength="100" value="${esc(s.place || "")}" placeholder="např. Vranov, Taverna u Say'jaxe"></div>
+      <div class="field wide"><label for="sChars">Postavy, oddělené čárkou</label><input type="text" id="sChars" maxlength="400" value="${esc((s.characters || []).join(", "))}"></div>
+      <div class="field wide"><label for="sImg">Obrázek scény (odkaz)</label><input type="text" id="sImg" maxlength="500" value="${esc(s.image || "")}" placeholder="odkaz na obrázek, třeba z Google Disku"></div>
+      <div class="field wide"><label for="sCap">Popisek obrázku</label><input type="text" id="sCap" maxlength="160" value="${esc(s.caption || "")}"></div>
+    </div>
+    <datalist id="advList">${advs.map(a => `<option value="${esc(a)}">`).join("")}</datalist>
+    <p class="hint">Sezení se na historickou osu nedostane samo. Pokud změnilo dějiny, zaškrtni níže „Zobrazit na ose“. Herní datum se předvyplní.</p>
+  </fieldset>`;
+}
+function readSession(){
+  if (!$("#sessBox")) return null;
+  const v = id => $(id).value.trim();
+  return cleanSession({ adventure: v("#sAdv"), no: v("#sNo"), played: v("#sPlayed"), year: v("#sYear"), m: v("#sM"), d: v("#sD"),
+    place: v("#sPlace"), characters: v("#sChars"), image: v("#sImg"), caption: v("#sCap") });
+}
+
+// ---------- kniha kampaně ----------
+const BK = { pages: [], idx: 0, wide: false, busy: false, chapterStart: new Map(), resizeT: null };
+const ORN = `<svg class="orn" viewBox="0 0 200 16" aria-hidden="true"><path d="M8 8H82M118 8H192" stroke="currentColor" stroke-width="1"/><path d="M100 1.5 107 8 100 14.5 93 8Z" fill="currentColor"/><circle cx="87" cy="8" r="2" fill="currentColor"/><circle cx="113" cy="8" r="2" fill="currentColor"/></svg>`;
+const CORNER = `<svg viewBox="0 0 60 60" aria-hidden="true"><path d="M4 58V22Q4 4 22 4H58" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 58V27Q11 11 27 11H58" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="22" cy="22" r="3.6" fill="currentColor"/><path d="M13 22a9 9 0 0 1 9-9" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M22 31a9 9 0 0 1-9-9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`;
+const bookChapters = () => [...S.articles.values()].filter(a => a.section === "kampan").sort(byChapter);
+const pageAt = i => (BK.pages[i] ? BK.pages[i].html : `<div class="pg blank"></div>`);
+const bookmarkKey = () => `malenorwiki:kniha:${S.user ? S.user.uid : "_"}`;
+
+function bookView(v, startId){
+  S.editing = true;
+  v.innerHTML = `<div class="book-wrap" id="bookWrap">
+      <div class="book-stage" id="bookStage"><p class="muted">Otevírám knihu…</p></div>
+      <div class="book-bar">
+        <button type="button" id="bkPrev" aria-label="Předchozí strana">‹ Zpět</button>
+        <label class="sr" for="bkToc">Přejít na kapitolu</label><select id="bkToc"></select>
+        <span class="bk-pg" id="bkPg"></span>
+        <a class="btn" id="bkArt" hidden>Otevřít jako článek</a>
+        <button type="button" id="bkNext" aria-label="Další strana">Dál ›</button>
+      </div>
+      <div class="pg measure" id="bkMeasure" aria-hidden="true"><div class="pg-head">&nbsp;</div><div class="pg-body"></div><div class="pg-foot">&nbsp;</div></div>
+    </div>`;
+  $("#bkPrev").onclick = () => turn(-1);
+  $("#bkNext").onclick = () => turn(1);
+  $("#bkToc").onchange = e => jump(+e.target.value);
+  const stage = $("#bookStage");
+  stage.addEventListener("click", e => {
+    if (e.target.closest("a, button, select, input")){ const g = e.target.closest("[data-goto]"); if (g){ e.preventDefault(); jump(+g.dataset.goto); } return; }
+    const r = stage.querySelector(".book").getBoundingClientRect();
+    turn(e.clientX < r.left + r.width / 2 ? -1 : 1);
+  });
+  let tx = null, ty = null;
+  stage.addEventListener("touchstart", e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  stage.addEventListener("touchend", e => {
+    if (tx == null) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4){ e.preventDefault(); turn(dx < 0 ? 1 : -1); }
+  });
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => layoutBook(startId ? { chapter: startId, offset: 0 } : loadBookmark()));
+}
+function loadBookmark(){ try { return JSON.parse(localStorage.getItem(bookmarkKey()) || "null"); } catch (e) { return null; } }
+function saveBookmark(){ const p = BK.pages[BK.idx]; if (!p) return; const c = p.chapter; const off = c ? BK.idx - (BK.chapterStart.get(c) || 0) : 0; try { localStorage.setItem(bookmarkKey(), JSON.stringify({ chapter: c || null, page: BK.idx, offset: off })); } catch (e) {} }
+
+function layoutBook(pos){
+  const stage = $("#bookStage"), wrap = $("#bookWrap"); if (!stage) return;
+  const hdr = $(".top").offsetHeight, stageW = stage.clientWidth;
+  const availH = Math.max(440, window.innerHeight - hdr - 64 - 36);
+  BK.wide = window.innerWidth >= 900 && stageW >= 760;
+  let pw, ph;
+  if (BK.wide){ pw = Math.floor(Math.min((stageW - 8) / 2, 500)); ph = Math.floor(Math.min(availH, pw * 1.48)); if (ph < pw * 1.2) pw = Math.floor(ph / 1.2); }
+  else { pw = Math.floor(Math.min(stageW, 560)); ph = Math.floor(Math.min(availH, pw * 1.75)); }
+  wrap.style.setProperty("--pw", pw + "px"); wrap.style.setProperty("--ph", ph + "px");
+  wrap.style.setProperty("--bfs", (BK.wide ? Math.max(14, Math.min(16.5, pw / 30)) : Math.max(15, Math.min(17, pw / 23))).toFixed(1) + "px");
+  BK.pw = pw; BK.ph = ph;
+  buildPages();
+  // pozice
+  let idx = 0;
+  if (pos && pos.chapter && BK.chapterStart.has(pos.chapter)) idx = BK.chapterStart.get(pos.chapter) + Math.max(0, pos.offset || 0);
+  else if (pos && Number.isFinite(pos.page)) idx = pos.page;
+  BK.idx = Math.max(0, Math.min(BK.pages.length - 1, idx));
+  if (BK.wide) BK.idx = 2 * Math.ceil(BK.idx / 2);
+  stage.innerHTML = BK.wide
+    ? `<div class="book wide" id="book"><div class="half left" id="bL"></div><div class="half right" id="bR"></div><div class="leaf" id="leaf" hidden><div class="face front"></div><div class="face back"></div></div></div>`
+    : `<div class="book single" id="book"><div class="half right" id="bR"></div><div class="leaf single" id="leaf" hidden><div class="face front"></div><div class="face back"></div></div></div>`;
+  $("#bkToc").innerHTML = `<option value="0">Obálka</option>${BK.tocStart != null ? `<option value="${BK.tocStart}">Obsah</option>` : ""}` +
+    bookChapters().map(a => BK.chapterStart.has(a.id) ? `<option value="${BK.chapterStart.get(a.id)}">${a.session && a.session.no != null ? a.session.no + ". " : ""}${esc(a.title)}</option>` : "").join("");
+  showStatic();
+}
+
+function buildPages(){
+  const m = $("#bkMeasure"), body = m.querySelector(".pg-body");
+  const H = body.clientHeight;
+  if (H < 120){ BK.pages = [{ chapter: null, cover: true, html: coverHTML() }]; BK.chapterStart = new Map(); BK.tocStart = null; return; }
+  const fits = () => body.scrollHeight <= H + 1;
+  const pages = []; let meta = null;
+  const start = mt => { body.innerHTML = ""; meta = mt; };
+  const finish = () => { if (meta) pages.push({ ...meta, body: body.innerHTML }); meta = null; body.innerHTML = ""; };
+  function splitToFit(node){
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT), bounds = []; let t;
+    while ((t = walker.nextNode())){ const re = /\S+/g; let mm; while ((mm = re.exec(t.data))) bounds.push([t, mm.index + mm[0].length]); }
+    if (bounds.length < 2) return [null, node];
+    const part = k => { const r = document.createRange(); r.setStart(node, 0); r.setEnd(bounds[k][0], bounds[k][1]); const el = node.cloneNode(false); el.appendChild(r.cloneContents()); return el; };
+    let lo = 0, hi = bounds.length - 2, best = -1;
+    while (lo <= hi){ const mid = (lo + hi) >> 1, el = part(mid); body.appendChild(el); const ok = fits(); body.removeChild(el); if (ok){ best = mid; lo = mid + 1; } else hi = mid - 1; }
+    if (best < 1 && bounds.length > 6) return [null, node];
+    if (best < 0) return [null, node];
+    const first = part(best);
+    const r2 = document.createRange(); r2.setStart(bounds[best][0], bounds[best][1]); r2.setEnd(node, node.childNodes.length);
+    const rest = node.cloneNode(false); rest.appendChild(r2.cloneContents()); rest.classList.add("cont"); rest.classList.remove("dropcap");
+    return [first, rest.textContent.trim() ? rest : null];
+  }
+  function add(node, guard = 0){
+    body.appendChild(node);
+    if (fits() || guard > 60) return;
+    body.removeChild(node);
+    const empty = !body.children.length;
+    const solid = /^H[1-6]$/.test(node.tagName) || node.classList.contains("nosplit") || node.tagName === "FIGURE" || node.tagName === "HR" || node.tagName === "TABLE" || node.querySelector("img");
+    if (solid){
+      if (empty){ body.appendChild(node); return; }
+      const carry = keepWithNext(); const mt = meta; finish(); start(mt); carry.forEach(c => body.appendChild(c)); add(node, guard + 1); return;
+    }
+    const [a, b] = splitToFit(node);
+    let carry = [];
+    if (a) body.appendChild(a); else carry = keepWithNext();
+    const mt = meta; finish(); start(mt); carry.forEach(c => body.appendChild(c));
+    if (b) add(b, guard + 1);
+  }
+  function keepWithNext(){
+    const last = body.lastElementChild;
+    if (last && body.children.length > 1 && (/^H[1-6]$/.test(last.tagName) || last.classList.contains("ch-head"))){ body.removeChild(last); return [last]; }
+    return [];
+  }
+  const chs = bookChapters();
+  const imgH = Math.round(Math.min(H * 0.42, BK.pw * 0.62));
+  // kapitoly (nejdřív bez obsahu, abychom znali čísla stran)
+  const chapterPages = [];
+  for (const a of chs){
+    const s = cleanSession(a.session) || {};
+    start({ chapter: a.id, head: a.title });
+    const first = pages.length;
+    const head = document.createElement("div"); head.className = "ch-head nosplit";
+    head.innerHTML = `<small>${esc([s.adventure, s.no != null ? "Sezení " + s.no : ""].filter(Boolean).join(" · "))}</small><h2>${esc(a.title)}</h2>
+      ${s.year != null || s.place ? `<div class="ch-date">${esc([fmtGameDate(s), s.place].filter(Boolean).join(" · "))}</div>` : ""}
+      ${s.characters && s.characters.length ? `<div class="ch-chars">${esc(s.characters.join(", "))}</div>` : ""}${ORN}`;
+    add(head);
+    if (s.image){
+      const fig = document.createElement("figure"); fig.className = "scene-pg nosplit";
+      fig.innerHTML = `<img src="${esc(imgUrl(s.image))}" alt="${esc(s.caption || a.title)}" style="height:${imgH}px" referrerpolicy="no-referrer">${s.caption ? `<figcaption>${esc(s.caption)}</figcaption>` : ""}`;
+      add(fig);
+    }
+    const tmp = document.createElement("div"); tmp.innerHTML = a.body ? renderMd(a.body) : `<p class="muted">Kapitola zatím nemá text.</p>`;
+    tmp.querySelectorAll("img").forEach(im => { im.style.height = Math.round(H * 0.36) + "px"; im.style.objectFit = "contain"; im.style.width = "100%"; });
+    let firstP = true;
+    [...tmp.children].forEach(el => { if (firstP && el.tagName === "P"){ el.classList.add("dropcap"); firstP = false; } add(el); });
+    finish();
+    chapterPages.push([a.id, first]);
+  }
+  const chPages = pages.splice(0);
+  // závěrečná strana
+  start({ chapter: null, head: "" });
+  body.innerHTML = `<div class="end-pg">${ORN}<p>${chs.length ? "Příběh pokračuje…" : "Kniha zatím nemá žádnou kapitolu."}</p>${!chs.length ? `<p><a href="#/novy/kampan">${S.admin ? "Napsat první kapitolu" : "Navrhnout první kapitolu"}</a></p>` : ""}</div>`;
+  finish();
+  const endPage = pages.splice(0);
+  // obsah
+  const tocHTML = (offset) => {
+    let lastAdv = null, rows = "";
+    for (const [id, idx] of chapterPages){
+      const a = S.articles.get(id), s = cleanSession(a.session) || {};
+      if (s.adventure && s.adventure !== lastAdv){ rows += `<div class="toc-adv">${esc(s.adventure)}</div>`; lastAdv = s.adventure; }
+      rows += `<a class="toc-row" href="#/kniha/${enc(id)}" data-goto="${offset + idx}"><span class="toc-t">${s.no != null ? `<b>${s.no}.</b> ` : ""}${esc(a.title)}${s.year != null ? `<small>${esc(fmtGameDate(s))}</small>` : ""}</span><span class="toc-p">${offset + idx}</span></a>`;
+    }
+    return rows;
+  };
+  const tocPaginate = (offset) => {
+    start({ chapter: null, head: "Obsah", toc: true });
+    const h = document.createElement("h2"); h.className = "toc-h"; h.textContent = "Obsah"; add(h);
+    const tmp = document.createElement("div"); tmp.innerHTML = tocHTML(offset) || `<p class="muted">Zatím žádné kapitoly.</p>`;
+    [...tmp.children].forEach(el => { el.classList.add("nosplit"); add(el); });
+    finish();
+    return pages.splice(0);
+  };
+  let toc = tocPaginate(1 + 1);
+  toc = tocPaginate(1 + toc.length);
+  const all = [{ chapter: null, cover: true }, ...toc, ...chPages, ...endPage];
+  BK.tocStart = 1;
+  BK.chapterStart = new Map(chapterPages.map(([id, i]) => [id, 1 + toc.length + i]));
+  BK.pages = all.map((p, i) => ({ ...p, html: p.cover ? coverHTML() : `<div class="pg${i % 2 ? " verso" : " recto"}"><div class="pg-head">${esc(p.head || BOOK.title)}</div><div class="pg-body">${p.body}</div><div class="pg-foot">${i}</div></div>` }));
+  body.innerHTML = "";
+}
+function coverHTML(){
+  return `<div class="pg cover"><div class="cover-frame">${["tl", "tr", "bl", "br"].map(c => `<span class="corner ${c}">${CORNER}</span>`).join("")}
+    <div class="cover-title"><small>${esc(BOOK.subtitle)}</small><h1>${esc(BOOK.title)}</h1>${ORN}<span class="cover-hint">Klepni na pravou stranu a otevři knihu</span></div></div></div>`;
+}
+function showStatic(){
+  const n = BK.pages.length, L = $("#bL"), R = $("#bR"), book = $("#book"); if (!R) return;
+  if (BK.wide){
+    const s = BK.idx / 2;
+    book.classList.toggle("closed", s === 0);
+    L.innerHTML = s === 0 ? "" : pageAt(2 * s - 1); R.innerHTML = pageAt(2 * s);
+    $("#bkPg").textContent = s === 0 ? `obálka · ${n - 1} stran` : `strany ${2 * s - 1}–${Math.min(2 * s, n - 1)} z ${n - 1}`;
+    $("#bkPrev").disabled = s === 0; $("#bkNext").disabled = 2 * s >= n - 1;
+  } else {
+    R.innerHTML = pageAt(BK.idx);
+    $("#bkPg").textContent = BK.idx === 0 ? `obálka · ${n - 1} stran` : `strana ${BK.idx} z ${n - 1}`;
+    $("#bkPrev").disabled = BK.idx === 0; $("#bkNext").disabled = BK.idx >= n - 1;
+  }
+  const visible = BK.wide ? [BK.idx - 1, BK.idx] : [BK.idx];
+  const ch = visible.map(i => BK.pages[i] && BK.pages[i].chapter).filter(Boolean).pop();
+  const art = $("#bkArt");
+  if (ch){ art.hidden = false; art.href = `#/clanek/${enc(ch)}`; } else art.hidden = true;
+  const sel = $("#bkToc"); let best = "0";
+  [...sel.options].forEach(o => { if (+o.value <= Math.max(...visible)) best = o.value; });
+  sel.value = best;
+  saveBookmark();
+}
+function jump(i){ if (BK.busy) return; BK.idx = Math.max(0, Math.min(BK.pages.length - 1, i)); if (BK.wide) BK.idx = 2 * Math.ceil(BK.idx / 2); showStatic(); }
+function turn(dir){
+  if (BK.busy || !$("#book")) return;
+  const n = BK.pages.length, leaf = $("#leaf"), f = leaf.querySelector(".front"), b = leaf.querySelector(".back");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const run = (from, to, done) => {
+    BK.busy = true; leaf.hidden = false;
+    leaf.style.transition = "none"; leaf.style.transform = `rotateY(${from}deg)`;
+    void leaf.offsetWidth;
+    leaf.style.transition = ""; leaf.style.transform = `rotateY(${to}deg)`;
+    let fin = false; const end = () => { if (fin) return; fin = true; leaf.hidden = true; BK.busy = false; done(); };
+    leaf.addEventListener("transitionend", end, { once: true }); setTimeout(end, 1100);
+  };
+  if (BK.wide){
+    const s = BK.idx / 2, maxS = Math.ceil((n - 1) / 2);
+    if ((dir > 0 && s >= maxS) || (dir < 0 && s <= 0)) return;
+    if (reduce){ BK.idx += dir * 2; return showStatic(); }
+    const L = $("#bL"), R = $("#bR");
+    if (dir > 0){ leaf.className = "leaf right"; f.innerHTML = pageAt(2 * s); b.innerHTML = pageAt(2 * s + 1); R.innerHTML = pageAt(2 * s + 2); run(0, -180, () => { BK.idx += 2; showStatic(); }); }
+    else { leaf.className = "leaf left"; f.innerHTML = pageAt(2 * s - 1); b.innerHTML = pageAt(2 * s - 2); L.innerHTML = s - 1 === 0 ? "" : pageAt(2 * s - 3); if (s - 1 === 0) $("#book").classList.add("closing"); run(0, 180, () => { $("#book").classList.remove("closing"); BK.idx -= 2; showStatic(); }); }
+  } else {
+    if ((dir > 0 && BK.idx >= n - 1) || (dir < 0 && BK.idx <= 0)) return;
+    if (reduce){ BK.idx += dir; return showStatic(); }
+    const R = $("#bR"); leaf.className = "leaf single"; b.innerHTML = `<div class="pg blank back-of"></div>`;
+    if (dir > 0){ f.innerHTML = pageAt(BK.idx); R.innerHTML = pageAt(BK.idx + 1); run(0, -180, () => { BK.idx += 1; showStatic(); }); }
+    else { f.innerHTML = pageAt(BK.idx - 1); run(-180, 0, () => { BK.idx -= 1; showStatic(); }); }
+  }
+}
+document.addEventListener("keydown", e => {
+  if (route()[0] !== "kniha" || !$("#book") || e.target.closest("input, textarea, select")) return;
+  if (e.key === "ArrowRight" || e.key === "PageDown"){ e.preventDefault(); turn(1); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); turn(-1); }
+});
+window.addEventListener("resize", () => {
+  if (route()[0] !== "kniha" || !$("#book")) return;
+  clearTimeout(BK.resizeT);
+  BK.resizeT = setTimeout(() => { const p = BK.pages[BK.idx]; const c = p && p.chapter; layoutBook(c ? { chapter: c, offset: BK.idx - BK.chapterStart.get(c) } : { page: BK.idx }); }, 250);
+});
 
 // import událostí z dokumentu Historická osa Malenoru
 const SEED_EVENTS = [
