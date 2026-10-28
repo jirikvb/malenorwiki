@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=11";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=12";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -26,7 +26,6 @@ export function initChars(ctx){
   const DEFAULT_LISTS = {
     races: [
       { name: "Člověk", lineages: ["Vznešené rody", "Seveřané", "Lesní národy", "Kočovníci"] },
-      { name: "Elf", lineages: ["Divocí elfové", "Vznešení elfové", "Noční elfové", "Krvaví elfové"] },
       { name: "Trpaslík", lineages: ["Podzemní trpaslíci", "Skalní trpaslíci", "Světlí trpaslíci"] },
       ...RACES.map(r => ({ name: r.name, lineages: r.lineages.map(l => l.name) }))
     ],
@@ -139,7 +138,7 @@ export function initChars(ctx){
     : a.type === "schopnost" && b.type === "schopnost" ? String(a.classes || a.race || "~").localeCompare(String(b.classes || b.race || "~"), "cs") || num(a.level) - num(b.level) : 0) || (a.name || "").localeCompare(b.name || "", "cs"));
   const lvlName = l => num(l) === 0 ? "trik" : `${num(l)}. stupeň`;
   const canEditLib = e => S.admin || (e && e.createdBy === S.user.uid);
-  const usesTxt = u => u && u.max ? `${u.max}× za ${u.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : "";
+  const usesTxt = u => u && u.max ? `${u.max === "prof" ? "zdatnostní bonus" : u.max}× za ${u.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : "";
   const srcTxt = e => [e.source, e.page ? `str. ${e.page}` : ""].filter(Boolean).join(", ");
   const origin = e => e.classes ? [e.classes, e.subclass].filter(Boolean).join(" – ") : e.race ? e.race : e.bg ? "zázemí " + e.bg : "";
   function libMeta(e){
@@ -238,7 +237,7 @@ export function initChars(ctx){
         <div class="seg" role="group" aria-label="Filtr">${[["", "Vše"], ["kouzlo", "Kouzla"], ["schopnost", "Schopnosti"]].map(([k, l]) => `<button type="button" data-lt="${k}" aria-pressed="${ty === k}">${l}</button>`).join("")}</div>
         <select id="libC" aria-label="Povolání"><option value="">všechna povolání</option>${clsNames.map(n => `<option${S._libC === n ? " selected" : ""}>${esc(n)}</option>`).join("")}<option value="_rasa"${S._libC === "_rasa" ? " selected" : ""}>rasové schopnosti</option><option value="_bez"${S._libC === "_bez" ? " selected" : ""}>bez krátkého popisu</option></select>
         <button type="button" class="primary" id="libAdd">Přidat</button>
-        ${S.admin && !HOMEBREW_FEATURES.every(h => [...S.library.values()].some(x => norm(x.name) === norm(h.name))) ? `<button type="button" id="libSeed">Nahrát homebrew Beorů</button>` : ""}
+        ${S.admin && !HOMEBREW_FEATURES.every(h => [...S.library.values()].some(x => norm(x.name) === norm(h.name))) ? `<button type="button" id="libSeed">Nahrát homebrew Malenoru</button>` : ""}
         ${S.admin ? `<button type="button" id="libImp">Importovat</button>` : ""}</div>
       <p class="hint" id="libCount"></p>
       <ul class="list" id="libList"></ul>`;
@@ -347,10 +346,17 @@ export function initChars(ctx){
         <p class="lede">Z těchto seznamů se hráčům nabízejí hodnoty v deníku. Co v seznamu není, deník označí „mimo seznam“. Malenor má vlastní rasy a rody, takže seznam nemusí odpovídat knize JaD.</p></div>
       <form class="editor" id="lsForm">
         <div class="field"><label for="lsRaces">Rasy a rody: na řádek jedna rasa, za dvojtečku rody oddělené čárkou</label><textarea id="lsRaces" style="min-height:12em">${esc(L.races.map(r => r.name + (r.lineages && r.lineages.length ? ": " + r.lineages.join(", ") : "")).join("\n"))}</textarea></div>
+        <div class="row"><button type="button" id="lsHb">Doplnit rasy Malenoru</button><span class="hint">Přidá Beory a elfy Malenoru s jejich rody. Rody, které v Malenoru neplatí, smaž ručně.</span></div>
         <div class="field"><label for="lsBg">Zázemí: na řádek jedno</label><textarea id="lsBg" style="min-height:8em">${esc(L.backgrounds.join("\n"))}</textarea></div>
         <div class="field"><label for="lsCls">Povolání: název, kostka obnovy, sesílání (plný, poloviční, třetinový, pakt, žádné)</label><textarea id="lsCls" style="min-height:12em">${esc(L.classes.map(c => `${c.name}, k${num(c.hd, 8)}, ${casterOut[c.caster] || "žádné"}`).join("\n"))}</textarea></div>
         <div class="sticky-actions"><button type="submit" class="primary">Uložit seznamy</button><span class="hint" id="lsStatus"></span></div>
       </form>`;
+    $("#lsHb").onclick = () => {
+      const ta = $("#lsRaces"), rows = ta.value.split("\n").map(x => x.trim()).filter(Boolean).map(l => { const [n, rest] = l.split(":"); return { name: n.trim(), lin: rest ? rest.split(",").map(x => x.trim()).filter(Boolean) : [] }; });
+      RACES.forEach(r => { let row = rows.find(x => norm(x.name) === norm(r.name)); if (!row){ row = { name: r.name, lin: [] }; rows.push(row); } r.lineages.forEach(l => { if (!row.lin.some(x => norm(x) === norm(l.name))) row.lin.push(l.name); }); });
+      ta.value = rows.map(r => r.name + (r.lin.length ? ": " + r.lin.join(", ") : "")).join("\n");
+      toast("Doplněno. Ulož seznamy.");
+    };
     $("#lsForm").onsubmit = async e => {
       e.preventDefault();
       const lines = id => $(id).value.split("\n").map(x => x.trim()).filter(Boolean);
@@ -798,7 +804,9 @@ export function initChars(ctx){
       };
     });
   }
-  const featFromLib = e => ({ libId: e.id, name: e.name, summary: e.summary || "", uses: e.uses && num(e.uses.max) ? { max: num(e.uses.max), used: 0, reset: e.uses.reset || "dlouhy" } : null });
+  // počet použití: číslo, nebo "prof" = zdatnostní bonus (při postupu se přepočítá)
+  const usesFrom = u => !u ? null : u.max === "prof" ? { max: prof(C), used: 0, reset: u.reset || "dlouhy", byProf: true } : num(u.max) ? { max: num(u.max), used: 0, reset: u.reset || "dlouhy" } : null;
+  const featFromLib = e => ({ libId: e.id, name: e.name, summary: e.summary || "", uses: usesFrom(e.uses) });
   function picker(v, id, type, add){
     const input = $("#" + id), list = $("#" + id + "L"); if (!input) return;
     const draw2 = () => {
@@ -883,9 +891,10 @@ export function initChars(ctx){
     };
   }
   function allRaces(){
-    const jad = (R().races || []).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: true,
+    const hbNames = new Set(RACES.map(r => norm(r.name)));
+    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name))).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: true,
       lineages: (r.lineages || []).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
-    return [...jad, ...RACES.map(r => ({ ...r, src: "homebrew", allowNone: false }))];
+    return [...RACES.map(r => ({ ...r, src: "Malenor", allowNone: false })), ...jad];
   }
   const bonusTxt = b => Object.entries(b || {}).filter(([, n]) => num(n)).map(([k, n]) => `${sgn(num(n))} ${SHORT[k]}`).join(", ");
   function racePicker(v){
@@ -894,7 +903,7 @@ export function initChars(ctx){
     const box = openOvl("Předvolba rasy a rodu", RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}</small></h3>
         <ul class="pick-list static">${r.allowNone || !r.lineages.length ? `<li><button type="button" data-race="${r.key}" data-lin=""><strong>${r.lineages.length ? "bez rodu" : esc(r.name)}</strong><small>${esc(statLine(r, null))}</small></button></li>` : ""}
         ${r.lineages.map(l => `<li><button type="button" data-race="${r.key}" data-lin="${l.key}"><strong>${esc(l.name)}</strong><small>${esc(statLine(r, l))}</small></button></li>`).join("")}</ul>`).join("")
-      + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem, rychlost, jazyky, rasové zdatnosti a rasové schopnosti. Předchozí rasové schopnosti se z deníku odeberou. Všechno jde potom přepsat ručně. U homebrew rodů nahrazuje bonus rodu základní bonus rasy.</p>`);
+      + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem, rychlost, jazyky, rasové zdatnosti a rasové schopnosti. Předchozí rasové schopnosti se z deníku odeberou. Všechno jde potom přepsat ručně. U Beorů bonus rodu nahrazuje základní bonus, u elfů Malenoru se k +2 Obr přičítá.</p>`);
     box.querySelectorAll("[data-race]").forEach(b => b.onclick = () => {
       const r = RS.find(x => x.key === b.dataset.race), l = b.dataset.lin ? r.lineages.find(x => x.key === b.dataset.lin) : null;
       C.race = r.name; C.raceKey = r.key; C.lineage = l ? l.name : ""; C.raceBonus = { ...((l && l.bonus) || r.bonus || {}) }; C.speed = (l && l.speed) || r.speed || 6;
@@ -907,7 +916,7 @@ export function initChars(ctx){
         const lib = libFind(tn, x => x.type === "schopnost" && !x.classes);
         if (lib) return C.features.push({ ...featFromLib(lib), fromRace: true });
         const h = HOMEBREW_FEATURES.find(x => norm(x.name) === norm(tn));
-        C.features.push(h ? { name: h.name, summary: h.summary || "", text: h.text || "", uses: h.uses ? { max: h.uses.max, used: 0, reset: h.uses.reset } : null, fromRace: true } : { name: tn, summary: "", text: "", uses: null, fromRace: true });
+        C.features.push(h ? { name: h.name, summary: h.summary || "", text: h.text || "", uses: usesFrom(h.uses), fromRace: true } : { name: tn, summary: "", text: "", uses: null, fromRace: true });
       });
       const dv = (l && l.darkvision) || r.darkvision;
       C.raceNote = [!bonusTxt(C.raceBonus) && r.bonusNote ? "Doplň bonus: " + r.bonusNote : "", l && l.bonusNote ? "Doplň bonus: " + l.bonusNote : "", r.skillNote ? "Vyber " + r.skillNote : "", l && l.languagesExtra ? "Jazyky: " + l.languagesExtra : "", dv ? `Vidění ve tmě ${dv} sáhů` : "", l && l.hpPerLevel ? `+${l.hpPerLevel} BV za každou úroveň (připočti k maximu)` : "", r.size && r.size !== "Střední" ? "Velikost: " + r.size.toLowerCase() : ""].filter(Boolean).join(" · ");
@@ -950,6 +959,7 @@ export function initChars(ctx){
       const fromCls = val === "new" ? C.classes[C.classes.length - 1].name : C.classes[+val].name;
       box.querySelectorAll("[data-luf]:checked").forEach(cb => { const e = S.library.get(cb.dataset.luf); if (e && !(C.features || []).some(f => f.libId === e.id)) C.features.push({ ...featFromLib(e), fromClass: fromCls }); });
       C.bv.max = num(C.bv.max) + gain; C.bv.cur = num(C.bv.cur) + gain;
+      (C.features || []).forEach(f => { if (f.uses && f.uses.byProf) f.uses.max = prof(C); });
       C.levelUps = Math.max(0, num(C.levelUps) - 1);
       save(); closeOvl(); draw(v); toast(`Úroveň ${level(C)}. Zdatnostní bonus ${sgn(prof(C))}.`);
     };
