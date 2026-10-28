@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, query, where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js?v=6";
 import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=6";
@@ -18,7 +18,7 @@ catch (e) { db = initializeFirestore(app, {}); }
 // ---------- stav ----------
 const S = {
   user: null, admin: false, status: "loading", error: null,
-  articles: new Map(), proposals: new Map(), requests: new Map(), members: new Map(),
+  articles: new Map(), proposals: new Map(), requests: new Map(), members: new Map(), chars: new Map(), charParts: {},
   loaded: {}, titleIndex: new Map(),
   authSubs: [], dataSubs: [], routeSub: null, routeData: null,
   editing: false, dirty: false, pendingHash: null
@@ -96,7 +96,7 @@ function stopRoute(){ if (S.routeSub){ try { S.routeSub(); } catch (e) {} S.rout
 
 onAuthStateChanged(auth, user => {
   stopSubs(S.authSubs); stopSubs(S.dataSubs); stopRoute();
-  for (const k of ["articles", "proposals", "requests", "members"]) S[k].clear();
+  for (const k of ["articles", "proposals", "requests", "members", "chars"]) S[k].clear(); S.charParts = {};
   S.loaded = {}; S.titleIndex.clear();
   S.user = user; S.admin = !!user && ADMIN_UIDS.includes(user.uid); S.error = null; S.requested = false;
   if (!user){ S.status = "out"; render(); return; }
@@ -123,8 +123,17 @@ function becomeMember(){
   setDoc(doc(db, "users", S.user.uid), { name: myName(), photo: S.user.photoURL || "", updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
   listen("articles", S.articles, rebuildIndex);
   listen("proposals", S.proposals);
-  if (S.admin){ listen("requests", S.requests); listen("members", S.members); }
+  if (S.admin){ listen("requests", S.requests); listen("members", S.members); listenChars("all", collection(db, "characters")); }
+  else { listenChars("own", query(collection(db, "characters"), where("owner", "==", S.user.uid))); listenChars("pub", query(collection(db, "characters"), where("public", "==", true))); }
   render();
+}
+function listenChars(tag, q){
+  S.dataSubs.push(onSnapshot(q, snap => {
+    const m = new Map(); snap.forEach(d => m.set(d.id, { id: d.id, ...d.data() }));
+    S.charParts[tag] = m; S.chars.clear();
+    for (const part of Object.values(S.charParts)) for (const [k, v] of part) S.chars.set(k, v);
+    S.loaded.chars = true; charsChanged();
+  }, err => { console.error("characters", err); S.loaded.chars = true; dataChanged(); }));
 }
 function listen(name, map, after){
   S.dataSubs.push(onSnapshot(collection(db, name), snap => {
@@ -190,6 +199,7 @@ function renderChrome(){
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
     link("#/osa", "Osa", cur === "osa"),
     link("#/kniha", "Kniha", cur === "kniha"),
+    link("#/postavy", "Postavy", cur === "postavy" || cur === "postava"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
     link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
@@ -218,6 +228,8 @@ function renderMain(){
     case "osa": return timelineView(v, r[1]);
     case "kalendar": return calendarView(v);
     case "kniha": return bookView(v, r[1]);
+    case "postavy": return charsView(v);
+    case "postava": return charView(v, r[1], r[2] || "denik");
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }
