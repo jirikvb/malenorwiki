@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=10";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=11";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -279,7 +279,7 @@ export function initChars(ctx){
       <div class="field"><label for="impFile">Soubor</label><input type="file" id="impFile" accept=".json,application/json"></div>
       <div id="impInfo" class="hint"></div>
       <div id="impOpts" hidden>
-        <label class="chk"><input type="checkbox" id="impLib" checked> Kouzla a schopnosti do knihovny (krátké popisy, které už jste napsali, zůstanou)</label>
+        <label class="chk"><input type="checkbox" id="impLib" checked> Kouzla a schopnosti do knihovny (krátké popisy, které už jste napsali, zůstanou, prázdné se doplní ze souboru)</label>
         <label class="chk"><input type="checkbox" id="impRules" checked> Údaje o rasách, zázemích, povoláních, zbraních a zbrojích pro předvolby v denících</label>
         <label class="chk"><input type="checkbox" id="impLists" checked> Doplnit chybějící rasy, rody, zázemí a povolání do seznamů pro deníky</label>
         <div class="row"><button type="button" class="primary" id="impGo">Importovat</button></div>
@@ -307,7 +307,9 @@ export function initChars(ctx){
             const other = byName.get(e.type + "|" + norm(e.name) + "|" + norm(e.type === "kouzlo" ? "" : e.classes) + "|" + norm(e.type === "kouzlo" ? "" : e.subclass))
               || (e.type === "kouzlo" ? [...S.library.values()].find(x => x.type === "kouzlo" && norm(x.name) === norm(e.name)) : null);
             if (other && other.id !== id){ skipped++; continue; }
-            const clean = { ...e }; delete clean.summary; delete clean.text;
+            const clean = { ...e }; delete clean.text;
+            const ex = S.library.get(id);
+            if (!e.summary || (ex && ex.summary)) delete clean.summary; else clean.summaryByName = e.summaryByName || "Claude podle pravidel " + (data.source || "");
             ops.push([id, { ...clean, createdBy: S.user.uid, createdByName: myName(), importedAt: serverTimestamp() }]);
             S.library.has(id) ? updated++ : added++;
           }
