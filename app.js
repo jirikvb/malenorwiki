@@ -5,9 +5,9 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, query, where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=8";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=8";
-import { initChars } from "./postavy.js?v=8";
+import { firebaseConfig } from "./firebase-config.js?v=9";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=9";
+import { initChars } from "./postavy.js?v=9";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -196,7 +196,7 @@ function renderChrome(){
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
     link("#/osa", "Osa", cur === "osa"),
     link("#/kniha", "Kniha", cur === "kniha"),
-    link("#/deniky", "Deníky", cur === "deniky" || cur === "denik" || cur === "knihovna"),
+    link("#/deniky", "Deníky", cur === "deniky" || cur === "denik" || cur === "knihovna" || cur === "seznamy"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
     link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
@@ -229,6 +229,7 @@ function renderMain(){
     case "deniky": return CH.charsView(v);
     case "denik": return CH.charView(v, r[1], r[2]);
     case "knihovna": return CH.libraryView(v);
+    case "seznamy": return CH.listsView(v);
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }

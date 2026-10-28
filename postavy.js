@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=8";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=9";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -21,6 +21,24 @@ export function initChars(ctx){
     [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1], [4, 3, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]];
   const PACT = lv => lv < 1 ? null : { n: lv === 1 ? 1 : lv < 11 ? 2 : lv < 17 ? 3 : 4, lvl: lv < 3 ? 1 : lv < 5 ? 2 : lv < 7 ? 3 : lv < 9 ? 4 : 5 };
   const ASI = [4, 8, 12, 16, 19];
+  const ALIGN = ["Zákonné dobro", "Neutrální dobro", "Chaotické dobro", "Zákonná neutralita", "Čistá neutralita", "Chaotická neutralita", "Zákonné zlo", "Neutrální zlo", "Chaotické zlo", "Bez přesvědčení"];
+  const CASTER_WORD = { plny: "full", "plný": "full", polovicni: "half", "poloviční": "half", tretinovy: "third", "třetinový": "third", pakt: "pact", zadne: "none", "žádné": "none", nesesila: "none" };
+  const DEFAULT_LISTS = {
+    races: [
+      { name: "Člověk", lineages: ["Vznešené rody", "Seveřané", "Lesní národy", "Kočovníci"] },
+      { name: "Elf", lineages: ["Divocí elfové", "Vznešení elfové", "Noční elfové", "Krvaví elfové"] },
+      { name: "Trpaslík", lineages: ["Podzemní trpaslíci", "Skalní trpaslíci", "Světlí trpaslíci"] },
+      ...RACES.map(r => ({ name: r.name, lineages: r.lineages.map(l => l.name) }))
+    ],
+    backgrounds: [],
+    classes: CLASSES.map(([n, hd, c]) => ({ name: n, hd, caster: c }))
+  };
+  const lists = () => {
+    const c = S.config || {};
+    return { races: Array.isArray(c.races) && c.races.length ? c.races : DEFAULT_LISTS.races, backgrounds: Array.isArray(c.backgrounds) ? c.backgrounds : [],
+      classes: Array.isArray(c.classes) && c.classes.length ? c.classes : DEFAULT_LISTS.classes };
+  };
+  const classInfo = name => lists().classes.find(c => norm(c.name) === norm(name));
 
   const num = (v, d = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
   const sgn = n => (n >= 0 ? "+" : "−") + Math.abs(n);
@@ -87,6 +105,7 @@ export function initChars(ctx){
     }, err => { console.error("characters", err); S.loaded.chars = true; changed(); }));
     if (S.admin) sub("all", collection(db, "characters"));
     else { sub("own", query(collection(db, "characters"), where("owner", "==", S.user.uid))); sub("pub", query(collection(db, "characters"), where("public", "==", true))); }
+    S.dataSubs.push(onSnapshot(doc(db, "config", "lists"), snap => { S.config = snap.exists() ? snap.data() : null; changed(); }, () => {}));
     S.dataSubs.push(onSnapshot(collection(db, "library"), snap => {
       S.library.clear(); snap.forEach(d => S.library.set(d.id, { id: d.id, ...d.data() })); S.loaded.library = true; changed();
     }, err => { console.error("library", err); S.loaded.library = true; }));
@@ -223,6 +242,31 @@ export function initChars(ctx){
     draw();
   }
 
+  // ---------- seznamy pro deníky (vypravěč) ----------
+  function listsView(v){
+    S.editing = false;
+    if (!S.admin){ v.innerHTML = `<p class="muted">Seznamy spravuje vypravěč.</p>`; return; }
+    S.editing = true;
+    const L = lists();
+    const casterOut = { full: "plný", half: "poloviční", third: "třetinový", pact: "pakt", none: "žádné" };
+    v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/deniky">deníky</a></span><h1>Seznamy pro deníky</h1>
+        <p class="lede">Z těchto seznamů se hráčům nabízejí hodnoty v deníku. Co v seznamu není, deník označí „mimo seznam“. Malenor má vlastní rasy a rody, takže seznam nemusí odpovídat knize JaD.</p></div>
+      <form class="editor" id="lsForm">
+        <div class="field"><label for="lsRaces">Rasy a rody: na řádek jedna rasa, za dvojtečku rody oddělené čárkou</label><textarea id="lsRaces" style="min-height:12em">${esc(L.races.map(r => r.name + (r.lineages && r.lineages.length ? ": " + r.lineages.join(", ") : "")).join("\n"))}</textarea></div>
+        <div class="field"><label for="lsBg">Zázemí: na řádek jedno</label><textarea id="lsBg" style="min-height:8em">${esc(L.backgrounds.join("\n"))}</textarea></div>
+        <div class="field"><label for="lsCls">Povolání: název, kostka obnovy, sesílání (plný, poloviční, třetinový, pakt, žádné)</label><textarea id="lsCls" style="min-height:12em">${esc(L.classes.map(c => `${c.name}, k${num(c.hd, 8)}, ${casterOut[c.caster] || "žádné"}`).join("\n"))}</textarea></div>
+        <div class="sticky-actions"><button type="submit" class="primary">Uložit seznamy</button><span class="hint" id="lsStatus"></span></div>
+      </form>`;
+    $("#lsForm").onsubmit = async e => {
+      e.preventDefault();
+      const lines = id => $(id).value.split("\n").map(x => x.trim()).filter(Boolean);
+      const races = lines("#lsRaces").map(l => { const [n, rest] = l.split(":"); return { name: n.trim(), lineages: rest ? rest.split(",").map(x => x.trim()).filter(Boolean) : [] }; });
+      const classes = lines("#lsCls").map(l => { const [n, d, c] = l.split(",").map(x => (x || "").trim()); return { name: n, hd: num(String(d || "").replace(/\D/g, ""), 8) || 8, caster: CASTER_WORD[norm(c || "")] || CASTER_WORD[c] || "none" }; });
+      try { await setDoc(doc(db, "config", "lists"), { races, backgrounds: lines("#lsBg"), classes, updatedAt: serverTimestamp() }); S.editing = false; toast("Seznamy uloženy."); go("#/deniky"); }
+      catch (er){ toast(errText(er), "err"); }
+    };
+  }
+
   // ---------- seznam deníků ----------
   function charsView(v){
     S.editing = false;
@@ -233,7 +277,7 @@ export function initChars(ctx){
       <small>${esc([c.race + (c.lineage ? " (" + c.lineage + ")" : ""), (c.classes || []).filter(x => x.name).map(x => `${x.name} ${num(x.level)}`).join(" / "), c.ownerName && c.owner !== S.user.uid ? "hráč: " + c.ownerName : ""].filter(Boolean).join(" · "))}</small>
       <small>BV ${num(c.bv && c.bv.cur)}/${num(c.bv && c.bv.max)} · OČ ${acOf(c, (c.armor || {}).type)}${c.public ? " · viditelný družině" : ""}</small></a></li>`;
     v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/">MalenorWiki</a></span>
-        <div class="spread"><h1>Deníky postav</h1><div class="row"><a class="btn" href="#/knihovna">Knihovna kouzel</a><button type="button" class="primary" id="newChar">Nová postava</button></div></div>
+        <div class="spread"><h1>Deníky postav</h1><div class="row"><a class="btn" href="#/knihovna">Knihovna kouzel</a>${S.admin ? `<a class="btn" href="#/seznamy">Seznamy pro deníky</a>` : ""}<button type="button" class="primary" id="newChar">Nová postava</button></div></div>
         <p class="lede">Deník se ukládá průběžně a funguje i během hry. Vypravěč vidí všechny deníky, ostatní hráči jen ty, které jim zpřístupníš.</p></div>
       <section class="head"><h2>Moje postavy</h2>${mine.length ? `<ul class="list">${mine.map(row).join("")}</ul>` : `<p class="muted">Zatím nemáš žádnou postavu.</p>`}</section>
       ${others.length ? `<section class="head"><h2>${S.admin ? "Postavy hráčů" : "Postavy družiny"}</h2><ul class="list">${others.map(row).join("")}</ul>
@@ -340,19 +384,24 @@ export function initChars(ctx){
     <section class="card"><h2>Postava</h2>
       <div class="sh-grid">
         ${fld("", "Jméno postavy", inp("name", 'maxlength="80"'))}
-        ${fld("", "Rasa", `<div class="row nowrap">${inp("race", 'maxlength="60"')}<button type="button" id="racePick" title="Vybrat homebrew rasu">Vybrat</button></div>`)}
-        ${fld("", "Rod", inp("lineage", 'maxlength="60"'))}
-        ${fld("", "Zázemí", inp("background", 'maxlength="60"'))}
-        ${fld("", "Přesvědčení", inp("alignment", 'maxlength="40"'))}
+        ${fld("", "Rasa" + off(C.race, raceNames()), `<div class="row nowrap">${inp("race", 'maxlength="60" list="raceList"')}${RACES.length ? `<button type="button" id="racePick" title="Vybrat rasu s předvolbou bonusů">Předvolba</button>` : ""}</div>`)}
+        ${fld("", "Rod" + off(C.lineage, lineageNames(C.race)), inp("lineage", 'maxlength="60" list="linList"'))}
+        ${fld("", "Zázemí" + off(C.background, lists().backgrounds), inp("background", 'maxlength="60" list="bgList"'))}
+        ${fld("", "Přesvědčení" + off(C.alignment, ALIGN), inp("alignment", 'maxlength="40" list="alList"'))}
       </div>
+      <datalist id="raceList">${raceNames().map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+      <datalist id="linList">${lineageNames(C.race).map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+      <datalist id="bgList">${lists().backgrounds.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+      <datalist id="alList">${ALIGN.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
       <div class="cls-list">${(C.classes || []).map((c, i) => `<div class="cls-row">
-          <div class="field"><label>Povolání</label><input type="text" list="clsList" data-p="classes.${i}.name" data-cls="${i}" value="${esc(c.name || "")}"></div>
+          <div class="field"><label>Povolání${off(c.name, lists().classes.map(x => x.name))}</label><input type="text" list="clsList" data-p="classes.${i}.name" data-cls="${i}" value="${esc(c.name || "")}"></div>
           <div class="field sm"><label>Úroveň</label><input type="number" inputmode="numeric" min="1" max="20" data-p="classes.${i}.level" data-num value="${num(c.level, 1)}"${S.admin ? "" : " readonly title=\"Úroveň zvyšuje vypravěč přes postup\""}></div>
           <div class="field sm"><label>Kostka</label><select data-p="classes.${i}.hd" data-num>${[6, 8, 10, 12].map(d => `<option value="${d}"${num(c.hd) === d ? " selected" : ""}>k${d}</option>`).join("")}</select></div>
           <div class="field"><label>Sesílání</label><select data-p="classes.${i}.caster">${Object.entries(CASTER).map(([k, l]) => `<option value="${k}"${c.caster === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
           ${i > 0 && S.admin ? `<button type="button" class="ghost" data-rmcls="${i}" aria-label="Odebrat povolání">×</button>` : ""}
         </div>`).join("")}</div>
-      <datalist id="clsList">${CLASSES.map(c => `<option value="${c[0]}">`).join("")}</datalist>
+      <datalist id="clsList">${lists().classes.map(c => `<option value="${esc(c.name)}">`).join("")}</datalist>
+      <p class="hint">Návrhy se nabízejí ze seznamů, které spravuje vypravěč. Hodnota mimo seznam je označená, aby ji vypravěč mohl zkontrolovat.</p>
       <div class="row"><label class="chk"><input type="checkbox" data-p="public"${C.public ? " checked" : ""}${isOwner() ? "" : " disabled"}> Zpřístupnit deník družině</label></div>
     </section>
 
@@ -361,6 +410,7 @@ export function initChars(ctx){
         <div class="abil-roll"><span>${n}</span><strong data-d="mod.${k}">${sgn(am(C, k))}</strong></div>
         <div class="abil-in"><input type="number" inputmode="numeric" data-p="base.${k}" data-num value="${num(C.base && C.base[k], 10)}" aria-label="${n} – základ">${num(C.raceBonus && C.raceBonus[k]) ? `<span class="hint" title="bonus rasy">${sgn(num(C.raceBonus[k]))}</span>` : ""}<span class="abil-score" data-d="score.${k}">${score(C, k)}</span></div>
       </div>`).join("")}</div>
+      <details class="sl-ovr"><summary>Bonusy z rasy a rodu</summary><div class="when-grid">${ABIL.map(([k, n]) => `<div class="field sm"><label>${SHORT[k]}</label><input type="number" inputmode="numeric" data-p="raceBonus.${k}" data-num value="${num(C.raceBonus && C.raceBonus[k])}"></div>`).join("")}</div></details>
       <div class="stat-row">
         <div class="stat"><span>Zdatnostní bonus</span><strong data-d="prof">${sgn(pb)}</strong></div>
         <div class="stat"><span>Iniciativa</span><strong data-d="init">${sgn(am(C, "obr") + num(C.initBonus))}</strong><small class="bk" data-d="bk.init">${parts([["Obr", am(C, "obr"), true], ["bonus", num(C.initBonus)]])}</small></div>
@@ -457,7 +507,8 @@ export function initChars(ctx){
       ${pickerHTML("spPick", "Přidat kouzlo z knihovny…")}
     </section>
 
-    <section class="card"><h2>Poznámky k hraní postavy</h2><textarea data-p="playNotes" rows="4" style="min-height:6em">${esc(C.playNotes || "")}</textarea></section>`;
+    <section class="card"><h2>Poznámky k hraní postavy</h2><textarea data-p="playNotes" rows="4" style="min-height:6em">${esc(C.playNotes || "")}</textarea></section>
+    ${isOwner() || S.admin ? `<section class="card wide" id="delCard"><h2>Smazat deník</h2><p class="hint">Smaže postavu i tvoje zápisky k ní. Nejde vrátit.</p><div class="row"><button type="button" class="danger" id="chDel">Smazat deník</button></div></section>` : ""}`;
   }
   function armorWarn(){
     const t = C.armor.type, p = C.armorProf || {};
@@ -478,6 +529,9 @@ export function initChars(ctx){
       <label class="chk prep" title="připraveno"><input type="checkbox" data-prep="${s.i}"${s.prepared ? " checked" : ""}><span class="sr">připraveno</span></label>
       <button type="button" class="ft-name" data-sp="${s.i}"><strong>${esc(s.lib ? s.lib.name : s.name)}</strong>${s.lib && s.lib.summary ? `<span class="ex">${esc(s.lib.summary)}</span>` : s.lib ? `<span class="ex">${esc(libMeta(s.lib))}</span>` : ""}</button></li>`).join("")}</ul>`).join("");
   }
+  const raceNames = () => lists().races.map(r => r.name);
+  const lineageNames = race => { const r = lists().races.find(x => norm(x.name) === norm(race)); return r ? (r.lineages || []) : lists().races.flatMap(x => x.lineages || []); };
+  const off = (val, list) => val && list.length && !list.some(x => norm(x) === norm(val)) ? ` <span class="pill rejected" title="Není v seznamu vypravěče">mimo seznam</span>` : "";
   const pickerHTML = (id, ph) => `<div class="picker"><input type="search" id="${id}" placeholder="${ph}" autocomplete="off"><ul class="pick-list" id="${id}L" hidden></ul></div>`;
 
   function gearHTML(){
@@ -528,7 +582,7 @@ export function initChars(ctx){
   function bind(v){
     const sheet = $("#sheet");
     if (tab === "zapisky") return notesTab();
-    const structural = /^(classes\.\d+\.(caster|hd|level)|armor\.type|armor\.shield|armorProf\.|cast\.ability|backpack|weapons\.\d+\.(abil|prof|dmg|extra|name)|items\.\d+\.slots|base\.|exhaustion)/;
+    const structural = /^(race$|lineage$|background$|alignment$|classes\.\d+\.(caster|hd|level|name)|raceBonus\.|armor\.type|armor\.shield|armorProf\.|cast\.ability|backpack|weapons\.\d+\.(abil|prof|dmg|extra|name)|items\.\d+\.slots|base\.|exhaustion)/;
     sheet.querySelectorAll("[data-p]").forEach(el => {
       const ev = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
       el.addEventListener(ev, () => {
@@ -536,7 +590,7 @@ export function initChars(ctx){
         let val = el.type === "checkbox" ? el.checked : el.value;
         if ("num" in el.dataset) val = num(val, 0);
         setP(C, p, val);
-        if (/^classes\.\d+\.name$/.test(p)){ const i = +p.split(".")[1], k = CLASSES.find(c => norm(c[0]) === norm(val)); if (k){ C.classes[i].hd = k[1]; C.classes[i].caster = k[2]; save(); return later(v); } }
+        if (/^classes\.\d+\.name$/.test(p)){ const i = +p.split(".")[1], k = classInfo(val); if (k){ C.classes[i].hd = num(k.hd, 8); C.classes[i].caster = k.caster || "none"; save(); return later(v); } }
         save(); refresh();
         if (structural.test(p) && ev === "change") later(v);
       });
@@ -580,6 +634,19 @@ export function initChars(ctx){
     on("#restLong", () => restLong(v));
     on("#racePick", () => racePicker(v));
     on("#lvlStart", () => levelUp(v));
+    on("#chDel", () => {
+      const card = $("#delCard"); card.querySelector(".row").innerHTML = `<span class="hint">Opravdu smazat „${esc(C.name || "postavu")}“?</span><button type="button" class="danger" id="chDelY">Ano, smazat</button><button type="button" id="chDelN">Ponechat</button>`;
+      $("#chDelN").onclick = () => draw(v);
+      $("#chDelY").onclick = async () => {
+        try {
+          const col = collection(db, "characters", CID, "notes");
+          if (isOwner()){ const own = await new Promise((res, rej) => { const u = onSnapshot(query(col, where("owner", "==", S.user.uid)), sn => { u(); const ids = []; sn.forEach(d => ids.push(d.id)); res(ids); }, rej); });
+            const b = writeBatch(db); own.forEach(id => b.delete(doc(col, id))); b.delete(doc(db, "characters", CID)); S.routeSub && S.routeSub(); S.routeSub = null; await b.commit(); }
+          else { S.routeSub && S.routeSub(); S.routeSub = null; await deleteDoc(doc(db, "characters", CID)); }
+          toast("Deník smazán."); CID = null; C = null; go("#/deniky");
+        } catch (e){ toast(errText(e), "err"); }
+      };
+    });
   }
   const featFromLib = e => ({ libId: e.id, name: e.name, summary: e.summary || "", uses: e.uses && num(e.uses.max) ? { max: num(e.uses.max), used: 0, reset: e.uses.reset || "dlouhy" } : null });
   function picker(v, id, type, add){
@@ -687,13 +754,13 @@ export function initChars(ctx){
     const om = am(C, "odol");
     const box = openOvl(`Postup na úroveň ${level(C) + 1}`, `
       <div class="field"><label for="luCls">Které povolání zvyšuješ</label><select id="luCls">${(C.classes || []).map((c, i) => `<option value="${i}">${esc(c.name || "povolání " + (i + 1))} ${num(c.level)} → ${num(c.level) + 1}</option>`).join("")}<option value="new">Nové povolání (víc povolání)</option></select></div>
-      <div id="luNew" hidden class="sh-grid"><div class="field"><label for="luName">Název</label><input type="text" id="luName" list="clsList2"><datalist id="clsList2">${CLASSES.map(c => `<option value="${c[0]}">`).join("")}</datalist></div></div>
+      <div id="luNew" hidden class="sh-grid"><div class="field"><label for="luName">Název</label><input type="text" id="luName" list="clsList2"><datalist id="clsList2">${lists().classes.map(c => `<option value="${esc(c.name)}">`).join("")}</datalist></div></div>
       <p>Přírůstek BV: hoď kostkou povolání a zapiš, co padlo, nebo vezmi průměr. Přičte se oprava Odolnosti (${sgn(om)}).</p>
       <div class="row"><input type="number" inputmode="numeric" min="1" id="luVal" placeholder="padlo" style="width:5.5em" aria-label="Hod na kostku povolání"><button type="button" id="luRoll">Použít hod</button><button type="button" id="luAvg">Průměr</button><strong id="luBv"></strong></div>
       <p class="hint" id="luAsi"></p>
       <div class="row"><button type="button" class="primary" id="luDo" disabled>Postoupit</button></div>`);
     let gain = null;
-    const cur = () => { const val = box.querySelector("#luCls").value; if (val === "new"){ const k = CLASSES.find(c => norm(c[0]) === norm(box.querySelector("#luName").value)); return { hd: k ? k[1] : 8, newLevel: 1, name: box.querySelector("#luName").value }; } const c = C.classes[+val]; return { hd: num(c.hd, 8), newLevel: num(c.level) + 1, name: c.name }; };
+    const cur = () => { const val = box.querySelector("#luCls").value; if (val === "new"){ const k = classInfo(box.querySelector("#luName").value); return { hd: k ? num(k.hd, 8) : 8, newLevel: 1, name: box.querySelector("#luName").value }; } const c = C.classes[+val]; return { hd: num(c.hd, 8), newLevel: num(c.level) + 1, name: c.name }; };
     const upd = () => { const c = cur(); box.querySelector("#luNew").hidden = box.querySelector("#luCls").value !== "new"; box.querySelector("#luAsi").textContent = ASI.includes(c.newLevel) ? `Na ${c.newLevel}. úrovni povolání ${c.name || ""} si obvykle zvyšuješ vlastnosti nebo bereš odbornost. Uprav hodnoty v deníku.` : ""; };
     box.querySelector("#luCls").onchange = () => { gain = null; box.querySelector("#luBv").textContent = ""; box.querySelector("#luDo").disabled = true; upd(); };
     box.querySelector("#luName").oninput = upd;
@@ -702,7 +769,7 @@ export function initChars(ctx){
     box.querySelector("#luAvg").onclick = () => { const d = cur().hd, a = d / 2 + 1; setGain(a, `průměr k${d}: ${a}`); };
     box.querySelector("#luDo").onclick = () => {
       const val = box.querySelector("#luCls").value;
-      if (val === "new"){ const nm = box.querySelector("#luName").value.trim(); if (!nm) return toast("Doplň název povolání.", "err"); const k = CLASSES.find(c => norm(c[0]) === norm(nm)); C.classes.push({ name: nm, level: 1, hd: k ? k[1] : 8, caster: k ? k[2] : "none" }); }
+      if (val === "new"){ const nm = box.querySelector("#luName").value.trim(); if (!nm) return toast("Doplň název povolání.", "err"); const k = classInfo(nm); C.classes.push({ name: nm, level: 1, hd: k ? num(k.hd, 8) : 8, caster: k ? (k.caster || "none") : "none" }); }
       else C.classes[+val].level = num(C.classes[+val].level) + 1;
       C.bv.max = num(C.bv.max) + gain; C.bv.cur = num(C.bv.cur) + gain;
       C.levelUps = Math.max(0, num(C.levelUps) - 1);
@@ -742,7 +809,7 @@ export function initChars(ctx){
   }
 
   return {
-    listen, reset, charsView, charView, libraryView,
+    listen, reset, charsView, charView, libraryView, listsView,
     setOnChange: fn => { onChange = fn; }
   };
 }

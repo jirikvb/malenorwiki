@@ -85,6 +85,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isMember() && resource.data.createdBy == me());
     }
 
+    // Seznamy pro deníky (rasy, zázemí, povolání). Spravuje vypravěč.
+    match /config/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+
     // Všechno ostatní je zavřené.
     match /{document=**} {
       allow read, write: if false;
