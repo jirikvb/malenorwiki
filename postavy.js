@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=12";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=13";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -138,7 +138,7 @@ export function initChars(ctx){
     : a.type === "schopnost" && b.type === "schopnost" ? String(a.classes || a.race || "~").localeCompare(String(b.classes || b.race || "~"), "cs") || num(a.level) - num(b.level) : 0) || (a.name || "").localeCompare(b.name || "", "cs"));
   const lvlName = l => num(l) === 0 ? "trik" : `${num(l)}. stupeň`;
   const canEditLib = e => S.admin || (e && e.createdBy === S.user.uid);
-  const usesTxt = u => u && u.max ? `${u.max === "prof" ? "zdatnostní bonus" : u.max}× za ${u.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : "";
+  const usesTxt = u => u && u.max ? `${u.max === "prof" ? "zdatnostní bonus" : u.max === "half" ? "polovina úrovně" : u.max}× za ${u.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : "";
   const srcTxt = e => [e.source, e.page ? `str. ${e.page}` : ""].filter(Boolean).join(", ");
   const origin = e => e.classes ? [e.classes, e.subclass].filter(Boolean).join(" – ") : e.race ? e.race : e.bg ? "zázemí " + e.bg : "";
   function libMeta(e){
@@ -227,6 +227,17 @@ export function initChars(ctx){
   }
   function openLibForm(prefill, onSaved){ const b = openOvl("Přidat do knihovny", libFormHTML(prefill)); bindLibForm(b, prefill, x => { closeOvl(); onSaved && onSaved(x); }); }
 
+  // homebrew schopnosti, které v knihovně chybí nebo mají starší znění (stejný název z jiného zdroje, např. JaD, se nechá být)
+  function hbPending(){
+    const out = [];
+    HOMEBREW_FEATURES.forEach(h => {
+      const same = [...S.library.values()].filter(x => norm(x.name) === norm(h.name));
+      const mine = same.find(x => x.source === (h.source || "homebrew"));
+      if (!same.length) out.push([h, null]);
+      else if (mine && (mine.text !== (h.text || "") || mine.summary !== (h.summary || "") || JSON.stringify(mine.uses || null) !== JSON.stringify(h.uses || null))) out.push([h, mine]);
+    });
+    return out;
+  }
   function libraryView(v){
     S.editing = false;
     const q = (S._libQ || ""), ty = S._libT || "";
@@ -237,7 +248,7 @@ export function initChars(ctx){
         <div class="seg" role="group" aria-label="Filtr">${[["", "Vše"], ["kouzlo", "Kouzla"], ["schopnost", "Schopnosti"]].map(([k, l]) => `<button type="button" data-lt="${k}" aria-pressed="${ty === k}">${l}</button>`).join("")}</div>
         <select id="libC" aria-label="Povolání"><option value="">všechna povolání</option>${clsNames.map(n => `<option${S._libC === n ? " selected" : ""}>${esc(n)}</option>`).join("")}<option value="_rasa"${S._libC === "_rasa" ? " selected" : ""}>rasové schopnosti</option><option value="_bez"${S._libC === "_bez" ? " selected" : ""}>bez krátkého popisu</option></select>
         <button type="button" class="primary" id="libAdd">Přidat</button>
-        ${S.admin && !HOMEBREW_FEATURES.every(h => [...S.library.values()].some(x => norm(x.name) === norm(h.name))) ? `<button type="button" id="libSeed">Nahrát homebrew Malenoru</button>` : ""}
+        ${S.admin && hbPending().length ? `<button type="button" id="libSeed">Nahrát homebrew Malenoru (${hbPending().length})</button>` : ""}
         ${S.admin ? `<button type="button" id="libImp">Importovat</button>` : ""}</div>
       <p class="hint" id="libCount"></p>
       <ul class="list" id="libList"></ul>`;
@@ -261,11 +272,13 @@ export function initChars(ctx){
       sb.disabled = true;
       try {
         const b = writeBatch(db); let n = 0;
-        for (const h of HOMEBREW_FEATURES){
-          if ([...S.library.values()].some(x => norm(x.name) === norm(h.name))) continue;
-          b.set(doc(collection(db, "library")), { type: "schopnost", name: h.name, summary: h.summary || "", text: h.text || "", source: h.source || "homebrew", url: "", uses: h.uses || null, createdBy: S.user.uid, createdByName: myName(), updatedAt: serverTimestamp() }); n++;
+        for (const [h, ex] of hbPending()){
+          const data = { type: "schopnost", name: h.name, summary: h.summary || "", text: h.text || "", source: h.source || "homebrew", url: "", uses: h.uses || null, updatedAt: serverTimestamp() };
+          if (ex) b.set(doc(db, "library", ex.id), data, { merge: true });
+          else b.set(doc(collection(db, "library")), { ...data, createdBy: S.user.uid, createdByName: myName() });
+          n++;
         }
-        await b.commit(); toast(`Nahráno ${n} schopností.`);
+        await b.commit(); toast(`Nahráno nebo aktualizováno ${n} schopností.`);
       } catch (er){ toast(errText(er), "err"); sb.disabled = false; }
     };
     draw();
@@ -805,7 +818,9 @@ export function initChars(ctx){
     });
   }
   // počet použití: číslo, nebo "prof" = zdatnostní bonus (při postupu se přepočítá)
-  const usesFrom = u => !u ? null : u.max === "prof" ? { max: prof(C), used: 0, reset: u.reset || "dlouhy", byProf: true } : num(u.max) ? { max: num(u.max), used: 0, reset: u.reset || "dlouhy" } : null;
+  const halfLvl = () => Math.ceil(level(C) / 2);
+  const usesFrom = u => !u ? null : u.max === "prof" ? { max: prof(C), used: 0, reset: u.reset || "dlouhy", byProf: true }
+    : u.max === "half" ? { max: halfLvl(), used: 0, reset: u.reset || "dlouhy", byHalf: true } : num(u.max) ? { max: num(u.max), used: 0, reset: u.reset || "dlouhy" } : null;
   const featFromLib = e => ({ libId: e.id, name: e.name, summary: e.summary || "", uses: usesFrom(e.uses) });
   function picker(v, id, type, add){
     const input = $("#" + id), list = $("#" + id + "L"); if (!input) return;
@@ -959,7 +974,7 @@ export function initChars(ctx){
       const fromCls = val === "new" ? C.classes[C.classes.length - 1].name : C.classes[+val].name;
       box.querySelectorAll("[data-luf]:checked").forEach(cb => { const e = S.library.get(cb.dataset.luf); if (e && !(C.features || []).some(f => f.libId === e.id)) C.features.push({ ...featFromLib(e), fromClass: fromCls }); });
       C.bv.max = num(C.bv.max) + gain; C.bv.cur = num(C.bv.cur) + gain;
-      (C.features || []).forEach(f => { if (f.uses && f.uses.byProf) f.uses.max = prof(C); });
+      (C.features || []).forEach(f => { if (f.uses && f.uses.byProf) f.uses.max = prof(C); if (f.uses && f.uses.byHalf) f.uses.max = halfLvl(); });
       C.levelUps = Math.max(0, num(C.levelUps) - 1);
       save(); closeOvl(); draw(v); toast(`Úroveň ${level(C)}. Zdatnostní bonus ${sgn(prof(C))}.`);
     };
