@@ -81,7 +81,8 @@ service cloud.firestore {
     match /library/{id} {
       allow read: if isMember();
       allow create: if isMember() && request.resource.data.createdBy == me();
-      allow update: if isAdmin() || (isMember() && resource.data.createdBy == me() && request.resource.data.createdBy == me());
+      allow update: if isAdmin() || (isMember() && resource.data.createdBy == me() && request.resource.data.createdBy == me())
+        || (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['summary', 'summaryBy', 'summaryByName', 'updatedAt']) && request.resource.data.summaryBy == me());
       allow delete: if isAdmin() || (isMember() && resource.data.createdBy == me());
     }
 

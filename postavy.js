@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=9";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=10";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -106,13 +106,19 @@ export function initChars(ctx){
     if (S.admin) sub("all", collection(db, "characters"));
     else { sub("own", query(collection(db, "characters"), where("owner", "==", S.user.uid))); sub("pub", query(collection(db, "characters"), where("public", "==", true))); }
     S.dataSubs.push(onSnapshot(doc(db, "config", "lists"), snap => { S.config = snap.exists() ? snap.data() : null; changed(); }, () => {}));
+    S.dataSubs.push(onSnapshot(doc(db, "config", "rules"), snap => { S.rules = snap.exists() ? snap.data() : null; changed(); }, () => {}));
     S.dataSubs.push(onSnapshot(collection(db, "library"), snap => {
       S.library.clear(); snap.forEach(d => S.library.set(d.id, { id: d.id, ...d.data() })); S.loaded.library = true; changed();
     }, err => { console.error("library", err); S.loaded.library = true; }));
   }
   let chTimer = null, onChange = () => {};
   function changed(){ clearTimeout(chTimer); chTimer = setTimeout(() => onChange(), 40); }
-  function reset(){ S.chars.clear(); S.library.clear(); charParts = {}; }
+  function reset(){ S.chars.clear(); S.library.clear(); charParts = {}; S.rules = null; }
+  const R = () => S.rules || {};
+  const ruleClass = name => (R().classes || []).find(c => norm(c.name) === norm(name));
+  const ruleBg = name => (R().backgrounds || []).find(b => norm(b.name) === norm(name));
+  const asiOf = name => { const c = ruleClass(name); return c && Array.isArray(c.asi) ? c.asi : ASI; };
+  const libFind = (name, pred) => [...S.library.values()].find(x => norm(x.name) === norm(name) && (!pred || pred(x)));
 
   // ---------- společné prvky: panel a hod kostkou ----------
   const ovl = document.createElement("div");
@@ -129,23 +135,37 @@ export function initChars(ctx){
   // ---------- knihovna ----------
   const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
   const srdUrl = name => `https://dnd5esrd.d20.cz/grimoar/grimoar-jmen.html#${slug(name)}`;
-  const libSorted = type => [...S.library.values()].filter(x => !type || x.type === type).sort((a, b) => (a.type === "kouzlo" && b.type === "kouzlo" ? num(a.level) - num(b.level) : 0) || (a.name || "").localeCompare(b.name || "", "cs"));
+  const libSorted = type => [...S.library.values()].filter(x => !type || x.type === type).sort((a, b) => (a.type === "kouzlo" && b.type === "kouzlo" ? num(a.level) - num(b.level)
+    : a.type === "schopnost" && b.type === "schopnost" ? String(a.classes || a.race || "~").localeCompare(String(b.classes || b.race || "~"), "cs") || num(a.level) - num(b.level) : 0) || (a.name || "").localeCompare(b.name || "", "cs"));
   const lvlName = l => num(l) === 0 ? "trik" : `${num(l)}. stupeň`;
   const canEditLib = e => S.admin || (e && e.createdBy === S.user.uid);
+  const usesTxt = u => u && u.max ? `${u.max}× za ${u.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : "";
+  const srcTxt = e => [e.source, e.page ? `str. ${e.page}` : ""].filter(Boolean).join(", ");
+  const origin = e => e.classes ? [e.classes, e.subclass].filter(Boolean).join(" – ") : e.race ? e.race : e.bg ? "zázemí " + e.bg : "";
   function libMeta(e){
-    if (e.type !== "kouzlo") return [e.source, e.uses && e.uses.max ? `${e.uses.max}× za ${e.uses.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : ""].filter(Boolean).join(" · ");
+    if (e.type !== "kouzlo") return [origin(e), e.group && e.group !== "Rasová schopnost" && e.group !== "Schopnost zázemí" ? e.group : "", e.levels ? `úr. ${e.levels}` : "", usesTxt(e.uses), e.classes || e.race || e.bg ? "" : e.source].filter(Boolean).join(" · ");
     return [lvlName(e.level) + (e.school ? `, ${e.school.toLowerCase()}` : ""), e.ritual ? "rituál" : "", e.conc ? "soustředění" : ""].filter(Boolean).join(" · ");
   }
   function libCardHTML(e){
     const rows = e.type === "kouzlo"
-      ? [["Doba seslání", e.cast], ["Dosah", e.range], ["Složky", e.comp], ["Trvání", (e.conc ? "soustředění, " : "") + (e.dur || "")], ["Povolání", e.classes], ["Zdroj", e.source]]
-      : [["Původ", e.source], ["Použití", e.uses && e.uses.max ? `${e.uses.max}× za ${e.uses.reset === "kratky" ? "krátký" : "dlouhý"} odpočinek` : ""]];
+      ? [["Doba seslání", e.cast], ["Dosah", e.range], ["Složky", e.comp], ["Trvání", e.dur && /soustředění/i.test(e.dur) ? e.dur : (e.conc ? "soustředění, " : "") + (e.dur || "")], ["Povolání", e.classes], ["Zdroj", srcTxt(e)]]
+      : [["Povolání", e.classes], ["Obor", e.subclass], ["Rasa", e.race], ["Zázemí", e.bg], ["Volba z", e.group && !/Rasová|zázemí/.test(e.group) ? e.group + (e.category ? ` (${e.category})` : "") : ""], ["Úroveň", e.levels], ["Předpoklad", e.prereq], ["Kdy", e.usage], ["Použití", usesTxt(e.uses)], ["Zdroj", srcTxt(e)]];
     const link = e.url || (e.type === "kouzlo" && e.srd !== false ? srdUrl(e.name) : "");
+    const sumEdit = !canEditLib(e) && e.id;
     return `<p class="lib-meta">${esc(libMeta(e))}</p>
-      ${e.summary ? `<p class="lib-sum">${esc(e.summary)}</p>` : ""}
+      ${e.summary ? `<p class="lib-sum">${esc(e.summary)}</p>${e.summaryByName ? `<p class="hint">Popis: ${esc(e.summaryByName)}</p>` : ""}` : `<p class="hint">Krátký popis zatím chybí.${e.page ? ` Plné znění je v pravidlech JaD na straně ${esc(e.page)}.` : ""}</p>`}
+      ${sumEdit ? `<details class="sl-ovr" id="sumBox"><summary>${e.summary ? "Upravit krátký popis" : "Doplnit krátký popis"}</summary><div class="field"><label for="sumTxt">Vlastními slovy, pár vět</label><textarea id="sumTxt" rows="3" maxlength="400" style="min-height:5em">${esc(e.summary || "")}</textarea></div><button type="button" class="primary" id="sumSave">Uložit popis</button></details>` : ""}
       <dl class="lib-dl">${rows.filter(r => r[1]).map(r => `<div><dt>${r[0]}</dt><dd>${esc(r[1])}</dd></div>`).join("")}</dl>
       ${e.text ? `<div class="md lib-text">${renderMd(e.text)}</div>` : ""}
-      ${link ? `<p><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Plné znění</a></p>` : ""}`;
+      ${link ? `<p><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Plné znění v SRD</a></p>` : ""}`;
+  }
+  function bindSum(box, e){
+    const b = box.querySelector("#sumSave"); if (!b) return;
+    b.onclick = async () => {
+      const t = box.querySelector("#sumTxt").value.trim();
+      try { await updateDoc(doc(db, "library", e.id), { summary: t, summaryBy: S.user.uid, summaryByName: myName(), updatedAt: serverTimestamp() }); toast("Popis uložen."); closeOvl(); }
+      catch (er){ toast(errText(er), "err"); }
+    };
   }
   function libFormHTML(e){
     e = e || {};
@@ -187,20 +207,21 @@ export function initChars(ctx){
       ev.preventDefault();
       const v = id => box.querySelector(id).value.trim();
       const name = v("#lfName"); if (!name) return toast("Doplň název.", "err");
-      const dup = [...S.library.values()].find(x => norm(x.name) === norm(name) && (!e || x.id !== e.id));
+      const dup = [...S.library.values()].find(x => norm(x.name) === norm(name) && x.type === type && (type === "kouzlo" || (norm(x.classes) === norm(e && e.classes) && norm(x.subclass) === norm(e && e.subclass))) && (!e || x.id !== e.id));
       if (dup) return toast(`„${dup.name}“ už v knihovně je.`, "err");
       const data = { type, name, summary: v("#lfSum"), source: v("#lfSource"), url: v("#lfUrl"), text: box.querySelector("#lfText").value };
       if (type === "kouzlo") Object.assign(data, { level: num(v("#lfLvl")), school: v("#lfSchool"), cast: v("#lfCast"), range: v("#lfRange"), comp: v("#lfComp"), dur: v("#lfDur"), conc: box.querySelector("#lfConc").checked, ritual: box.querySelector("#lfRit").checked, classes: v("#lfClasses") });
       else { const u = num(v("#lfUses")); data.uses = u > 0 ? { max: u, reset: v("#lfReset") } : null; }
       try {
         const ref = e && e.id ? doc(db, "library", e.id) : doc(collection(db, "library"));
-        await setDoc(ref, { ...data, createdBy: e && e.createdBy ? e.createdBy : S.user.uid, createdByName: e && e.createdByName ? e.createdByName : myName(), updatedAt: serverTimestamp() });
+        await setDoc(ref, { ...data, createdBy: e && e.createdBy ? e.createdBy : S.user.uid, createdByName: e && e.createdByName ? e.createdByName : myName(), updatedAt: serverTimestamp() }, { merge: true });
         toast("Uloženo do knihovny."); onSaved && onSaved({ id: ref.id, ...data });
       } catch (er){ toast(errText(er), "err"); }
     };
   }
   function openLibCard(e, extra){
     const box = openOvl(e.name, libCardHTML(e) + (extra ? extra.html : "") + (canEditLib(e) ? `<p><button type="button" id="lcEdit" class="ghost">Upravit v knihovně</button></p>` : ""));
+    bindSum(box, e);
     if (extra && extra.bind) extra.bind(box);
     const ed = box.querySelector("#lcEdit");
     if (ed) ed.onclick = () => { const b = openOvl("Upravit: " + e.name, libFormHTML(e)); bindLibForm(b, e, () => closeOvl()); };
@@ -210,22 +231,31 @@ export function initChars(ctx){
   function libraryView(v){
     S.editing = false;
     const q = (S._libQ || ""), ty = S._libT || "";
+    const clsNames = [...new Set([...lists().classes.map(c => c.name), ...[...S.library.values()].flatMap(e => String(e.classes || "").split(",").map(x => x.trim()))].filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs"));
     v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/deniky">deníky</a></span><h1>Knihovna</h1>
-        <p class="lede">Kouzla a schopnosti, které používáte. Každý člen může přidávat. U kouzel stačí krátký popis, plné znění se otevře v SRD JaD.</p></div>
+        <p class="lede">Kouzla a schopnosti, které používáte. Každý člen může přidávat a doplňovat krátké popisy. Plné znění kouzel se otevře v SRD JaD, u položek z pravidel je uvedena strana.</p></div>
       <div class="row"><input type="search" id="libQ" placeholder="Hledat kouzlo nebo schopnost…" value="${esc(q)}" style="flex:1 1 220px">
         <div class="seg" role="group" aria-label="Filtr">${[["", "Vše"], ["kouzlo", "Kouzla"], ["schopnost", "Schopnosti"]].map(([k, l]) => `<button type="button" data-lt="${k}" aria-pressed="${ty === k}">${l}</button>`).join("")}</div>
+        <select id="libC" aria-label="Povolání"><option value="">všechna povolání</option>${clsNames.map(n => `<option${S._libC === n ? " selected" : ""}>${esc(n)}</option>`).join("")}<option value="_rasa"${S._libC === "_rasa" ? " selected" : ""}>rasové schopnosti</option><option value="_bez"${S._libC === "_bez" ? " selected" : ""}>bez krátkého popisu</option></select>
         <button type="button" class="primary" id="libAdd">Přidat</button>
-        ${S.admin && !HOMEBREW_FEATURES.every(h => [...S.library.values()].some(x => norm(x.name) === norm(h.name))) ? `<button type="button" id="libSeed">Nahrát homebrew Beorů</button>` : ""}</div>
+        ${S.admin && !HOMEBREW_FEATURES.every(h => [...S.library.values()].some(x => norm(x.name) === norm(h.name))) ? `<button type="button" id="libSeed">Nahrát homebrew Beorů</button>` : ""}
+        ${S.admin ? `<button type="button" id="libImp">Importovat</button>` : ""}</div>
+      <p class="hint" id="libCount"></p>
       <ul class="list" id="libList"></ul>`;
     const draw = () => {
-      const qq = norm($("#libQ").value); S._libQ = $("#libQ").value;
-      const items = libSorted(S._libT || "").filter(e => !qq || norm(e.name).includes(qq) || norm(e.summary).includes(qq) || norm(e.classes).includes(qq));
-      $("#libList").innerHTML = items.length ? items.map(e => `<li><button type="button" class="item ghost lib-row" data-id="${esc(e.id)}"><strong>${esc(e.name)}</strong><small>${e.type === "kouzlo" ? "kouzlo" : "schopnost"} · ${esc(libMeta(e))}</small>${e.summary ? `<span class="ex">${esc(e.summary)}</span>` : ""}</button></li>`).join("")
+      const qq = norm($("#libQ").value); S._libQ = $("#libQ").value; const fc = S._libC || "";
+      const items = libSorted(S._libT || "").filter(e => (!qq || [e.name, e.summary, e.classes, e.subclass, e.group, e.race, e.bg].some(x => norm(x).includes(qq)))
+        && (!fc || (fc === "_rasa" ? !!e.race : fc === "_bez" ? !e.summary : String(e.classes || "").split(",").some(x => norm(x) === norm(fc)))));
+      const shown = items.slice(0, 300);
+      $("#libCount").textContent = items.length > shown.length ? `Zobrazeno ${shown.length} z ${items.length}. Upřesni hledání.` : `${items.length} položek`;
+      $("#libList").innerHTML = shown.length ? shown.map(e => `<li><button type="button" class="item ghost lib-row" data-id="${esc(e.id)}"><strong>${esc(e.name)}</strong><small>${e.type === "kouzlo" ? "kouzlo" : "schopnost"} · ${esc(libMeta(e))}${e.page ? ` · str. ${esc(e.page)}` : ""}</small>${e.summary ? `<span class="ex">${esc(e.summary)}</span>` : ""}</button></li>`).join("")
         : `<li class="muted" style="padding:10px 0">Nic nenalezeno.</li>`;
       $("#libList").querySelectorAll("[data-id]").forEach(b => b.onclick = () => openLibCard(S.library.get(b.dataset.id)));
     };
     $("#libQ").addEventListener("input", draw);
+    $("#libC").onchange = () => { S._libC = $("#libC").value; draw(); };
     v.querySelectorAll("[data-lt]").forEach(b => b.onclick = () => { S._libT = b.dataset.lt; v.querySelectorAll("[data-lt]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); draw(); });
+    const ib = $("#libImp"); if (ib) ib.onclick = importDialog;
     $("#libAdd").onclick = () => openLibForm({ type: S._libT === "schopnost" ? "schopnost" : "kouzlo", name: $("#libQ").value.trim() });
     const sb = $("#libSeed");
     if (sb) sb.onclick = async () => {
@@ -240,6 +270,68 @@ export function initChars(ctx){
       } catch (er){ toast(errText(er), "err"); sb.disabled = false; }
     };
     draw();
+  }
+
+  // ---------- import rejstříku (vypravěč) ----------
+  const impId = e => "imp-" + slug([e.source || "x", e.type, e.classes, e.subclass, e.group, e.race, e.bg, e.name].filter(Boolean).join(" ")).slice(0, 180);
+  function importDialog(){
+    const box = openOvl("Import do knihovny", `<p>Nahraj soubor rejstříku (JSON). Data se uloží jen do databáze wiki, kam mají přístup schválení členové.</p>
+      <div class="field"><label for="impFile">Soubor</label><input type="file" id="impFile" accept=".json,application/json"></div>
+      <div id="impInfo" class="hint"></div>
+      <div id="impOpts" hidden>
+        <label class="chk"><input type="checkbox" id="impLib" checked> Kouzla a schopnosti do knihovny (krátké popisy, které už jste napsali, zůstanou)</label>
+        <label class="chk"><input type="checkbox" id="impRules" checked> Údaje o rasách, zázemích, povoláních, zbraních a zbrojích pro předvolby v denících</label>
+        <label class="chk"><input type="checkbox" id="impLists" checked> Doplnit chybějící rasy, rody, zázemí a povolání do seznamů pro deníky</label>
+        <div class="row"><button type="button" class="primary" id="impGo">Importovat</button></div>
+      </div>
+      <p class="hint" id="impLog"></p>`);
+    let data = null;
+    box.querySelector("#impFile").onchange = async ev => {
+      const f = ev.target.files[0]; if (!f) return;
+      try { data = JSON.parse(await f.text()); } catch { data = null; }
+      if (!data || data.format !== "malenorwiki-import" || !Array.isArray(data.library)){ box.querySelector("#impInfo").textContent = "Tohle není soubor rejstříku pro MalenorWiki."; box.querySelector("#impOpts").hidden = true; return; }
+      const k = data.library.filter(e => e.type === "kouzlo").length, s = data.library.length - k, r = data.rules || {};
+      box.querySelector("#impInfo").textContent = `Zdroj: ${data.source || "?"}. Kouzel ${k}, schopností ${s}. Ras ${(r.races || []).length}, zázemí ${(r.backgrounds || []).length}, povolání ${(r.classes || []).length}, zbraní ${(r.weapons || []).length}, zbrojí ${(r.armor || []).length}.`;
+      box.querySelector("#impOpts").hidden = false;
+    };
+    box.querySelector("#impGo").onclick = async () => {
+      const btn = box.querySelector("#impGo"), log = box.querySelector("#impLog"); btn.disabled = true;
+      try {
+        let added = 0, updated = 0, skipped = 0;
+        if (box.querySelector("#impLib").checked){
+          const byName = new Map(); S.library.forEach(x => { const key = x.type + "|" + norm(x.name) + "|" + norm(x.classes) + "|" + norm(x.subclass); byName.set(key, x); });
+          const ops = [];
+          for (const e of data.library){
+            if (!e || !e.name || !["kouzlo", "schopnost"].includes(e.type)) continue;
+            const id = impId(e);
+            const other = byName.get(e.type + "|" + norm(e.name) + "|" + norm(e.type === "kouzlo" ? "" : e.classes) + "|" + norm(e.type === "kouzlo" ? "" : e.subclass))
+              || (e.type === "kouzlo" ? [...S.library.values()].find(x => x.type === "kouzlo" && norm(x.name) === norm(e.name)) : null);
+            if (other && other.id !== id){ skipped++; continue; }
+            const clean = { ...e }; delete clean.summary; delete clean.text;
+            ops.push([id, { ...clean, createdBy: S.user.uid, createdByName: myName(), importedAt: serverTimestamp() }]);
+            S.library.has(id) ? updated++ : added++;
+          }
+          for (let i = 0; i < ops.length; i += 400){
+            const b = writeBatch(db);
+            ops.slice(i, i + 400).forEach(([id, d]) => b.set(doc(db, "library", id), d, { merge: true }));
+            log.textContent = `Ukládám knihovnu… ${Math.min(i + 400, ops.length)} / ${ops.length}`;
+            await b.commit();
+          }
+        }
+        if (box.querySelector("#impRules").checked && data.rules) await setDoc(doc(db, "config", "rules"), { ...data.rules, source: data.source || "", updatedAt: serverTimestamp() });
+        if (box.querySelector("#impLists").checked && data.rules){
+          const L = lists(), r = data.rules;
+          const races = L.races.map(x => ({ name: x.name, lineages: [...(x.lineages || [])] }));
+          (r.races || []).forEach(x => { const ex = races.find(y => norm(y.name) === norm(x.name)); const lin = (x.lineages || []).map(l => l.name);
+            if (!ex) races.push({ name: x.name, lineages: lin }); else lin.forEach(l => { if (!ex.lineages.some(y => norm(y) === norm(l))) ex.lineages.push(l); }); });
+          const bgs = [...L.backgrounds]; (r.backgrounds || []).forEach(b => { if (!bgs.some(y => norm(y) === norm(b.name))) bgs.push(b.name); });
+          const cls = L.classes.map(c => ({ ...c })); (r.classes || []).forEach(c => { const ex = cls.find(y => norm(y.name) === norm(c.name)); if (ex){ ex.hd = c.hd; ex.caster = c.caster; } else cls.push({ name: c.name, hd: c.hd, caster: c.caster }); });
+          await setDoc(doc(db, "config", "lists"), { races, backgrounds: bgs, classes: cls, updatedAt: serverTimestamp() });
+        }
+        log.textContent = `Hotovo. Nové: ${added}, aktualizované: ${updated}${skipped ? `, přeskočené (stejný název už v knihovně je): ${skipped}` : ""}.`;
+        toast("Import dokončen.");
+      } catch (er){ log.textContent = errText(er); toast(errText(er), "err"); btn.disabled = false; }
+    };
   }
 
   // ---------- seznamy pro deníky (vypravěč) ----------
@@ -384,17 +476,19 @@ export function initChars(ctx){
     <section class="card"><h2>Postava</h2>
       <div class="sh-grid">
         ${fld("", "Jméno postavy", inp("name", 'maxlength="80"'))}
-        ${fld("", "Rasa" + off(C.race, raceNames()), `<div class="row nowrap">${inp("race", 'maxlength="60" list="raceList"')}${RACES.length ? `<button type="button" id="racePick" title="Vybrat rasu s předvolbou bonusů">Předvolba</button>` : ""}</div>`)}
+        ${fld("", "Rasa" + off(C.race, raceNames()), `<div class="row nowrap">${inp("race", 'maxlength="60" list="raceList"')}${allRaces().length ? `<button type="button" id="racePick" title="Vybrat rasu s předvolbou bonusů">Předvolba</button>` : ""}</div>`)}
         ${fld("", "Rod" + off(C.lineage, lineageNames(C.race)), inp("lineage", 'maxlength="60" list="linList"'))}
         ${fld("", "Zázemí" + off(C.background, lists().backgrounds), inp("background", 'maxlength="60" list="bgList"'))}
         ${fld("", "Přesvědčení" + off(C.alignment, ALIGN), inp("alignment", 'maxlength="40" list="alList"'))}
       </div>
+      ${C.raceNote ? `<p class="hint">${esc(C.raceNote)}</p>` : ""}${bgNote()}
       <datalist id="raceList">${raceNames().map(n => `<option value="${esc(n)}">`).join("")}</datalist>
       <datalist id="linList">${lineageNames(C.race).map(n => `<option value="${esc(n)}">`).join("")}</datalist>
       <datalist id="bgList">${lists().backgrounds.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
       <datalist id="alList">${ALIGN.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
       <div class="cls-list">${(C.classes || []).map((c, i) => `<div class="cls-row">
           <div class="field"><label>Povolání${off(c.name, lists().classes.map(x => x.name))}</label><input type="text" list="clsList" data-p="classes.${i}.name" data-cls="${i}" value="${esc(c.name || "")}"></div>
+          <div class="field"><label>Obor povolání</label><input type="text" list="subList${i}" data-p="classes.${i}.sub" value="${esc(c.sub || "")}" placeholder="${(ruleClass(c.name) || {}).subclasses ? "od 2.–3. úrovně" : ""}"><datalist id="subList${i}">${((ruleClass(c.name) || {}).subclasses || []).map(n => `<option value="${esc(n)}">`).join("")}</datalist></div>
           <div class="field sm"><label>Úroveň</label><input type="number" inputmode="numeric" min="1" max="20" data-p="classes.${i}.level" data-num value="${num(c.level, 1)}"${S.admin ? "" : " readonly title=\"Úroveň zvyšuje vypravěč přes postup\""}></div>
           <div class="field sm"><label>Kostka</label><select data-p="classes.${i}.hd" data-num>${[6, 8, 10, 12].map(d => `<option value="${d}"${num(c.hd) === d ? " selected" : ""}>k${d}</option>`).join("")}</select></div>
           <div class="field"><label>Sesílání</label><select data-p="classes.${i}.caster">${Object.entries(CASTER).map(([k, l]) => `<option value="${k}"${c.caster === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
@@ -451,7 +545,8 @@ export function initChars(ctx){
         ${fld("", "Zbroj", `<select data-p="armor.type">${[["zadna", "žádná"], ["lehka", "lehká"], ["stredni", "střední (Obr max +2)"], ["tezka", "těžká"]].map(([k, l]) => `<option value="${k}"${C.armor.type === k ? " selected" : ""}>${l}</option>`).join("")}</select>`)}
         ${fld("", "Hodnota zbroje", nin("armor.base", 'min="0"'))}
         ${fld("", "Jiné (kouzla, předměty)", nin("armor.other"))}
-      </div>
+        ${(R().armor || []).length ? fld("", "Zbroj z tabulky", `<select id="armT"><option value="">vybrat…</option>${R().armor.filter(a => a.cat !== "štít").map(a => `<option value="${esc(a.name)}"${norm(C.armor.name) === norm(a.name) ? " selected" : ""}>${esc(a.name)} (${esc(a.ac)})</option>`).join("")}</select>`) : ""}
+      </div>${C.armor.name ? `<p class="hint">${esc(C.armor.name)}${(() => { const a = (R().armor || []).find(x => norm(x.name) === norm(C.armor.name)); return a ? esc([a.stealth ? "nevýhoda na Nenápadnost" : "", a.str ? "vyžaduje " + a.str.replace("SIL", "Sílu") : "", a.page ? "str. " + a.page : ""].filter(Boolean).map(x => " · " + x).join("")) : ""; })()}</p>` : ""}
       <div class="row">${chk("armor.shield", "Štít (+2)")}<span class="lbl">Zdatnost:</span>${chk("armorProf.lehke", "lehké")}${chk("armorProf.stredni", "střední")}${chk("armorProf.tezke", "těžké")}${chk("armorProf.stity", "štíty")}</div>
       ${armorWarn()}
     </section>
@@ -482,7 +577,7 @@ export function initChars(ctx){
           ${fld("", "Vlastnosti a poznámka", inp(`weapons.${i}.note`), "wide")}
         </div><div class="row">${chk(`weapons.${i}.prof`, "zdatnost")}<button type="button" class="danger" data-rmwp="${i}">Odebrat zbraň</button></div></div>
         ${w.type || w.range || w.note ? `<small class="muted">${esc([w.type, w.range, w.note].filter(Boolean).join(" · "))}</small>` : ""}</li>`; }).join("")}</ul>
-      <div class="row"><button type="button" id="addWp">Přidat zbraň</button><span class="lbl">Zdatnost:</span>${chk("weaponProf.jednoduche", "jednoduché")}${chk("weaponProf.valecne", "válečné")}</div>
+      <div class="row"><button type="button" id="addWp">Přidat zbraň</button>${(R().weapons || []).length ? `<select id="addWpT" aria-label="Zbraň z tabulky"><option value="">z tabulky…</option>${["jednoduché", "válečné"].map(cat => `<optgroup label="${cat}">${R().weapons.map((w, k) => w.cat === cat ? `<option value="${k}">${esc(w.name)} (${esc(w.dmg || "—")})</option>` : "").join("")}</optgroup>`).join("")}</select>` : ""}<span class="lbl">Zdatnost:</span>${chk("weaponProf.jednoduche", "jednoduché")}${chk("weaponProf.valecne", "válečné")}</div>
       <div class="sh-grid">${fld("", "Pomůcky", inp("tools"), "wide")}${fld("", "Jazyky", inp("languages"), "wide")}</div>
     </section>
 
@@ -528,6 +623,39 @@ export function initChars(ctx){
     return Object.keys(groups).sort((a, b) => a - b).map(l => `<h3 class="skl-h">${l < 0 ? "Mimo knihovnu" : lvlName(l)}</h3><ul class="ft-list">${groups[l].sort((a, b) => (a.name || "").localeCompare(b.name || "", "cs")).map(s => `<li class="ft">
       <label class="chk prep" title="připraveno"><input type="checkbox" data-prep="${s.i}"${s.prepared ? " checked" : ""}><span class="sr">připraveno</span></label>
       <button type="button" class="ft-name" data-sp="${s.i}"><strong>${esc(s.lib ? s.lib.name : s.name)}</strong>${s.lib && s.lib.summary ? `<span class="ex">${esc(s.lib.summary)}</span>` : s.lib ? `<span class="ex">${esc(libMeta(s.lib))}</span>` : ""}</button></li>`).join("")}</ul>`).join("");
+  }
+  const SKN = Object.fromEntries(SKILLS.map(s => [s[0], s[1]]));
+  function bgNote(){
+    const b = ruleBg(C.background); if (!b) return "";
+    return `<p class="hint">Zázemí ${esc(b.name)}: ${esc([(b.skills || []).map(k => SKN[k] || k).join(", "), b.other, b.feature ? "schopnost " + b.feature : "", b.page ? "str. " + b.page : ""].filter(Boolean).join(" · "))}</p>`;
+  }
+  function applyBg(){
+    const b = ruleBg(C.background); if (!b) return false;
+    C.skills = C.skills || {}; (b.skills || []).forEach(k => { C.skills[k] = Math.max(1, num(C.skills[k])); });
+    C.features = (C.features || []).filter(f => !f.fromBg);
+    if (b.feature && !C.features.some(f => norm(f.name) === norm(b.feature))){ const lib = libFind(b.feature, x => x.type === "schopnost"); C.features.push(lib ? { ...featFromLib(lib), fromBg: true } : { name: b.feature, summary: "", text: "", uses: null, fromBg: true }); }
+    toast(`Zázemí ${b.name}: ${(b.skills || []).map(k => SKN[k] || k).join(", ")}${b.feature ? ", " + b.feature : ""}. Ostatní zdatnosti (${b.other}) zapiš ručně.`);
+    return true;
+  }
+  // první povolání: záchrany, zdatnosti se zbrojí a zbraněmi a schopnosti 1. úrovně
+  function applyClassStart(i){
+    const c = C.classes[i], rc = ruleClass(c.name); if (!rc) return;
+    c.hd = num(rc.hd, c.hd); c.caster = rc.caster || c.caster;
+    const first = i === 0 && !Object.values(C.saves || {}).some(Boolean);
+    if (first){
+      C.saves = {}; (rc.saves || []).forEach(a => { C.saves[a] = true; });
+      C.armorProf = C.armorProf || {}; (rc.armorProf || []).forEach(k => { C.armorProf[k] = true; });
+      C.weaponProf = C.weaponProf || {}; (rc.weaponProf || []).forEach(k => { C.weaponProf[k] = true; });
+    }
+    const got = classFeatures(c.name, "", num(c.level, 1), true);
+    got.forEach(e => { if (!C.features.some(f => f.libId === e.id)) C.features.push({ ...featFromLib(e), fromClass: c.name }); });
+    toast(`${rc.name}: ${first ? "záchrany a zdatnosti se zbrojí a zbraněmi nastaveny, " : ""}${got.length ? "schopnosti 1. úrovně přidány. " : ""}Dovednosti: ${rc.skills}.`);
+  }
+  // schopnosti povolání z knihovny pro danou úroveň (upTo = všechny do této úrovně)
+  function classFeatures(cls, sub, lvl, upTo){
+    return [...S.library.values()].filter(e => e.type === "schopnost" && !e.group && norm(e.classes) === norm(cls) && (!e.subclass || (sub && norm(e.subclass) === norm(sub)))
+      && String(e.levels || e.level || "").split(",").map(x => num(x)).some(n => upTo ? n <= lvl : n === lvl))
+      .sort((a, b) => num(a.level) - num(b.level) || (a.name || "").localeCompare(b.name || "", "cs"));
   }
   const raceNames = () => lists().races.map(r => r.name);
   const lineageNames = race => { const r = lists().races.find(x => norm(x.name) === norm(race)); return r ? (r.lineages || []) : lists().races.flatMap(x => x.lineages || []); };
@@ -590,11 +718,18 @@ export function initChars(ctx){
         let val = el.type === "checkbox" ? el.checked : el.value;
         if ("num" in el.dataset) val = num(val, 0);
         setP(C, p, val);
-        if (/^classes\.\d+\.name$/.test(p)){ const i = +p.split(".")[1], k = classInfo(val); if (k){ C.classes[i].hd = num(k.hd, 8); C.classes[i].caster = k.caster || "none"; save(); return later(v); } }
+        if (p === "armor.type" && val === "zadna") C.armor.name = "";
+        if (/^classes\.\d+\.name$/.test(p)){ const i = +p.split(".")[1], k = classInfo(val); if (k){ C.classes[i].hd = num(k.hd, 8); C.classes[i].caster = k.caster || "none";
+          if (ruleClass(val) && !(C.features || []).some(f => f.fromClass && norm(f.fromClass) === norm(val))) applyClassStart(i);
+          save(); return later(v); } }
         save(); refresh();
         if (structural.test(p) && ev === "change") later(v);
       });
-      if (ev === "input" && structural.test(el.dataset.p)) el.addEventListener("change", () => later(v));
+      if (ev === "input" && structural.test(el.dataset.p)) el.addEventListener("change", () => {
+        const p = el.dataset.p;
+        if (p === "background" && canEdit()){ if (applyBg()) save(); }
+        later(v);
+      });
     });
     if (!canEdit()) return;
     // zdatnosti
@@ -615,6 +750,19 @@ export function initChars(ctx){
     const orr = $("#ovrReset"); if (orr) orr.onclick = () => { C.cast.slotsOverride = null; save(); draw(v); };
     // seznamy
     const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+    const wt = $("#addWpT"); if (wt) wt.onchange = () => {
+      const w = R().weapons[+wt.value]; if (!w) return;
+      const pr = norm(w.props), ranged = /dálku|palné/.test(w.kind || "");
+      C.weapons = C.weapons || [];
+      const byClass = (C.classes || []).some(c => { const rc = ruleClass(c.name); return rc && (norm(rc.weapons).includes(norm(w.name)) || norm(rc.weapons).startsWith("vsechny")); });
+      C.weapons.push({ name: w.name, abil: /vytriben/.test(pr) ? "vytr" : ranged ? "obr" : "sila", prof: byClass || !!(C.weaponProf && C.weaponProf[w.cat === "válečné" ? "valecne" : "jednoduche"]), extra: 0, dmg: w.dmg || "", type: w.dtype || "", range: w.range ? w.range + " sáhů" : "", note: w.props || "" });
+      save(); draw(v);
+    };
+    const at = $("#armT"); if (at) at.onchange = () => {
+      const a = (R().armor || []).find(x => x.name === at.value); if (!a) return;
+      C.armor.name = a.name; C.armor.type = a.cat === "lehká" ? "lehka" : a.cat === "střední" ? "stredni" : "tezka"; C.armor.base = num(a.base, 10);
+      save(); draw(v);
+    };
     on("#addWp", () => { C.weapons = C.weapons || []; C.weapons.push({ name: "", abil: "sila", prof: true, extra: 0, dmg: "1d6", type: "", range: "", note: "" }); openWp.add(C.weapons.length - 1); save(); draw(v); const e = $("#wpe" + (C.weapons.length - 1)); if (e) e.querySelector("input").focus(); });
     sheet.querySelectorAll("[data-wpedit]").forEach(b => b.onclick = () => { const i = +b.dataset.wpedit; openWp.has(i) ? openWp.delete(i) : openWp.add(i); draw(v); });
     sheet.querySelectorAll("[data-rmwp]").forEach(b => b.onclick = () => { C.weapons.splice(+b.dataset.rmwp, 1); openWp.clear(); save(); draw(v); });
@@ -732,22 +880,36 @@ export function initChars(ctx){
       save(); closeOvl(); draw(v); toast("Dlouhý odpočinek dokončen.");
     };
   }
+  function allRaces(){
+    const jad = (R().races || []).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: true,
+      lineages: (r.lineages || []).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
+    return [...jad, ...RACES.map(r => ({ ...r, src: "homebrew", allowNone: false }))];
+  }
+  const bonusTxt = b => Object.entries(b || {}).filter(([, n]) => num(n)).map(([k, n]) => `${sgn(num(n))} ${SHORT[k]}`).join(", ");
   function racePicker(v){
-    const box = openOvl("Homebrew rasy", RACES.map(r => `<h3 class="skl-h">${esc(r.name)}</h3><div class="row">${r.lineages.map(l => `<button type="button" data-race="${r.key}" data-lin="${l.key}">${esc(l.name)}</button>`).join("")}</div>`).join("")
-      + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem (bonus rodu nahrazuje základní bonus), rychlost, jazyky, zdatnost v Přežití a rasové schopnosti z knihovny. Bonusy se dají kdykoli přepsat ručně.</p>`);
+    const RS = allRaces();
+    const statLine = (r, l) => [bonusTxt(l && l.bonus || r.bonus) || (l && l.bonusNote) || r.bonusNote, `${(l && l.speed) || r.speed} sáhů`, (l && l.darkvision) || r.darkvision ? `vidění ve tmě ${(l && l.darkvision) || r.darkvision} sáhů` : "", l && l.bonusNote && bonusTxt(l.bonus) ? l.bonusNote : ""].filter(Boolean).join(" · ");
+    const box = openOvl("Předvolba rasy a rodu", RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}</small></h3>
+        <ul class="pick-list static">${r.allowNone || !r.lineages.length ? `<li><button type="button" data-race="${r.key}" data-lin=""><strong>${r.lineages.length ? "bez rodu" : esc(r.name)}</strong><small>${esc(statLine(r, null))}</small></button></li>` : ""}
+        ${r.lineages.map(l => `<li><button type="button" data-race="${r.key}" data-lin="${l.key}"><strong>${esc(l.name)}</strong><small>${esc(statLine(r, l))}</small></button></li>`).join("")}</ul>`).join("")
+      + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem, rychlost, jazyky, rasové zdatnosti a rasové schopnosti. Předchozí rasové schopnosti se z deníku odeberou. Všechno jde potom přepsat ručně. U homebrew rodů nahrazuje bonus rodu základní bonus rasy.</p>`);
     box.querySelectorAll("[data-race]").forEach(b => b.onclick = () => {
-      const r = RACES.find(x => x.key === b.dataset.race), l = r.lineages.find(x => x.key === b.dataset.lin);
-      C.race = r.name; C.raceKey = r.key; C.lineage = l.name; C.raceBonus = { ...(l.bonus || r.bonus) }; C.speed = r.speed;
+      const r = RS.find(x => x.key === b.dataset.race), l = b.dataset.lin ? r.lineages.find(x => x.key === b.dataset.lin) : null;
+      C.race = r.name; C.raceKey = r.key; C.lineage = l ? l.name : ""; C.raceBonus = { ...((l && l.bonus) || r.bonus || {}) }; C.speed = (l && l.speed) || r.speed || 6;
       C.skills = C.skills || {}; (r.skills || []).forEach(k => { C.skills[k] = Math.max(1, num(C.skills[k])); });
       if (r.languages && !norm(C.languages).includes(norm(r.languages.split(",")[0]))) C.languages = [C.languages, r.languages].filter(Boolean).join(", ");
-      C.features = C.features || [];
-      [...r.traits, ...(l.traits || [])].forEach(tn => {
+      C.features = (C.features || []).filter(f => !f.fromRace);
+      const names = [...(r.traits || []).filter(t => !(l && l.replaces && norm(l.replaces) === norm(t))), ...((l && l.traits) || [])];
+      names.forEach(tn => {
         if (C.features.some(f => norm(f.name) === norm(tn))) return;
-        const lib = [...S.library.values()].find(x => norm(x.name) === norm(tn));
-        if (lib) C.features.push(featFromLib(lib));
-        else { const h = HOMEBREW_FEATURES.find(x => norm(x.name) === norm(tn)); if (h) C.features.push({ name: h.name, summary: h.summary || "", text: h.text || "", uses: h.uses ? { max: h.uses.max, used: 0, reset: h.uses.reset } : null }); }
+        const lib = libFind(tn, x => x.type === "schopnost" && !x.classes);
+        if (lib) return C.features.push({ ...featFromLib(lib), fromRace: true });
+        const h = HOMEBREW_FEATURES.find(x => norm(x.name) === norm(tn));
+        C.features.push(h ? { name: h.name, summary: h.summary || "", text: h.text || "", uses: h.uses ? { max: h.uses.max, used: 0, reset: h.uses.reset } : null, fromRace: true } : { name: tn, summary: "", text: "", uses: null, fromRace: true });
       });
-      save(); closeOvl(); draw(v); toast(`${r.name}: ${l.name}.`);
+      const dv = (l && l.darkvision) || r.darkvision;
+      C.raceNote = [!bonusTxt(C.raceBonus) && r.bonusNote ? "Doplň bonus: " + r.bonusNote : "", l && l.bonusNote ? "Doplň bonus: " + l.bonusNote : "", r.skillNote ? "Vyber " + r.skillNote : "", l && l.languagesExtra ? "Jazyky: " + l.languagesExtra : "", dv ? `Vidění ve tmě ${dv} sáhů` : "", l && l.hpPerLevel ? `+${l.hpPerLevel} BV za každou úroveň (připočti k maximu)` : "", r.size && r.size !== "Střední" ? "Velikost: " + r.size.toLowerCase() : ""].filter(Boolean).join(" · ");
+      save(); closeOvl(); draw(v); toast(`${r.name}${l ? ": " + l.name : ""}.`);
     });
   }
   function levelUp(v){
@@ -758,10 +920,22 @@ export function initChars(ctx){
       <p>Přírůstek BV: hoď kostkou povolání a zapiš, co padlo, nebo vezmi průměr. Přičte se oprava Odolnosti (${sgn(om)}).</p>
       <div class="row"><input type="number" inputmode="numeric" min="1" id="luVal" placeholder="padlo" style="width:5.5em" aria-label="Hod na kostku povolání"><button type="button" id="luRoll">Použít hod</button><button type="button" id="luAvg">Průměr</button><strong id="luBv"></strong></div>
       <p class="hint" id="luAsi"></p>
+      <div id="luFeat"></div>
       <div class="row"><button type="button" class="primary" id="luDo" disabled>Postoupit</button></div>`);
     let gain = null;
-    const cur = () => { const val = box.querySelector("#luCls").value; if (val === "new"){ const k = classInfo(box.querySelector("#luName").value); return { hd: k ? num(k.hd, 8) : 8, newLevel: 1, name: box.querySelector("#luName").value }; } const c = C.classes[+val]; return { hd: num(c.hd, 8), newLevel: num(c.level) + 1, name: c.name }; };
-    const upd = () => { const c = cur(); box.querySelector("#luNew").hidden = box.querySelector("#luCls").value !== "new"; box.querySelector("#luAsi").textContent = ASI.includes(c.newLevel) ? `Na ${c.newLevel}. úrovni povolání ${c.name || ""} si obvykle zvyšuješ vlastnosti nebo bereš odbornost. Uprav hodnoty v deníku.` : ""; };
+    const cur = () => { const val = box.querySelector("#luCls").value; if (val === "new"){ const k = classInfo(box.querySelector("#luName").value); return { hd: k ? num(k.hd, 8) : 8, newLevel: 1, name: box.querySelector("#luName").value, sub: "" }; } const c = C.classes[+val]; return { hd: num(c.hd, 8), newLevel: num(c.level) + 1, name: c.name, sub: c.sub || "" }; };
+    const upd = () => {
+      const c = cur(); box.querySelector("#luNew").hidden = box.querySelector("#luCls").value !== "new";
+      box.querySelector("#luAsi").textContent = asiOf(c.name).includes(c.newLevel) ? `Na ${c.newLevel}. úrovni povolání ${c.name || ""} si zvyšuješ hodnoty vlastností (nebo bereš odbornost). Uprav je v deníku.` : "";
+      const fs2 = classFeatures(c.name, c.sub, c.newLevel, c.newLevel === 1);
+      const own = new Set((C.features || []).map(f => f.libId).filter(Boolean));
+      const rc = ruleClass(c.name), needSub = rc && (rc.subclasses || []).length && !c.sub && fs2.some(e => /archetyp|cesty|kolej|původ|patron|kruh|domén|tradice|řád|specializace/i.test(e.name));
+      box.querySelector("#luFeat").innerHTML = fs2.length ? `<h3 class="skl-h">Schopnosti na ${c.newLevel}. úrovni</h3><p class="hint">Zaškrtnuté se přidají do deníku. Už získané schopnosti, které se na této úrovni zlepšují, jsou označené.</p>
+        <ul class="lu-list">${fs2.map(e => `<li><label class="chk"><input type="checkbox" data-luf="${esc(e.id)}"${own.has(e.id) ? "" : " checked"}> ${esc(e.name)}</label><span class="hint">${esc([e.subclass, own.has(e.id) ? "zlepšení" : "", e.page ? "str. " + e.page : ""].filter(Boolean).join(" · "))}</span></li>`).join("")}</ul>
+        ${needSub ? `<div class="field"><label for="luSub">Obor povolání</label><input type="text" id="luSub" list="luSubL"><datalist id="luSubL">${rc.subclasses.map(n => `<option value="${esc(n)}">`).join("")}</datalist></div><p class="hint">Po zvolení oboru se nabídnou i jeho schopnosti.</p>` : ""}` : "";
+      const ls = box.querySelector("#luSub");
+      if (ls) ls.onchange = () => { const val = box.querySelector("#luCls").value; if (val !== "new" && rc.subclasses.some(n => norm(n) === norm(ls.value))){ C.classes[+val].sub = rc.subclasses.find(n => norm(n) === norm(ls.value)); upd(); } };
+    };
     box.querySelector("#luCls").onchange = () => { gain = null; box.querySelector("#luBv").textContent = ""; box.querySelector("#luDo").disabled = true; upd(); };
     box.querySelector("#luName").oninput = upd;
     const setGain = (g, txt) => { gain = Math.max(1, g + om); box.querySelector("#luBv").textContent = `${txt} ${sgn(om)} = +${gain} BV`; box.querySelector("#luDo").disabled = false; };
@@ -771,6 +945,8 @@ export function initChars(ctx){
       const val = box.querySelector("#luCls").value;
       if (val === "new"){ const nm = box.querySelector("#luName").value.trim(); if (!nm) return toast("Doplň název povolání.", "err"); const k = classInfo(nm); C.classes.push({ name: nm, level: 1, hd: k ? num(k.hd, 8) : 8, caster: k ? (k.caster || "none") : "none" }); }
       else C.classes[+val].level = num(C.classes[+val].level) + 1;
+      const fromCls = val === "new" ? C.classes[C.classes.length - 1].name : C.classes[+val].name;
+      box.querySelectorAll("[data-luf]:checked").forEach(cb => { const e = S.library.get(cb.dataset.luf); if (e && !(C.features || []).some(f => f.libId === e.id)) C.features.push({ ...featFromLib(e), fromClass: fromCls }); });
       C.bv.max = num(C.bv.max) + gain; C.bv.cur = num(C.bv.cur) + gain;
       C.levelUps = Math.max(0, num(C.levelUps) - 1);
       save(); closeOvl(); draw(v); toast(`Úroveň ${level(C)}. Zdatnostní bonus ${sgn(prof(C))}.`);
