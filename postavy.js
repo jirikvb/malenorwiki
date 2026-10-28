@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=7";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=8";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -58,17 +58,31 @@ export function initChars(ctx){
     return { used, L, M, H, max, label: st[0], pen: st[1], over: used > max };
   }
   const speed = C => { const l = load(C); return l.pen === 99 ? 1 : Math.max(0, num(C.speed, 6) - l.pen); };
+  const SHORT = { sila: "Sil", obr: "Obr", odol: "Odl", int: "Int", mou: "Mdr", cha: "Cha" };
+  const parts = arr => arr.filter(x => x && (x[2] || x[1] !== 0)).map(([l, v, keep, raw]) => raw ? `${l} ${v}` : `${l} ${sgn(v)}`).join(" · ");
+  const saveParts = (C, a) => [[SHORT[a], am(C, a), true], C.saves && C.saves[a] ? ["zdatnost", prof(C)] : null];
+  const skillParts = (C, k) => { const s = SKILLS.find(x => x[0] === k), n = num(C.skills && C.skills[k], 0); return [[SHORT[s[2]], am(C, s[2]), true], n ? [n === 2 ? "kvalifikace" : "zdatnost", n * prof(C)] : null]; };
+  function acParts(C, type){
+    const a = C.armor || {}, o = am(C, "obr"), base = num(a.base, 10), out = [];
+    if (type === "lehka"){ out.push(["zbroj", base, true, true], ["Obr", o, true]); }
+    else if (type === "stredni"){ out.push(["zbroj", base, true, true], ["Obr", Math.min(2, o), true]); }
+    else if (type === "tezka") out.push(["zbroj", base, true, true]);
+    else out.push(["základ", 10, true, true], ["Obr", o, true]);
+    if (a.shield) out.push(["štít", 2]);
+    if (num(a.other)) out.push(["jiné", num(a.other)]);
+    return out;
+  }
   const hdPool = C => { const p = {}; (C.classes || []).forEach(c => { const d = num(c.hd, 8); p[d] = (p[d] || 0) + num(c.level); }); return p; };
 
   // ---------- data ----------
   S.chars = S.chars || new Map(); S.library = S.library || new Map();
-  let parts = {};
+  let charParts = {};
   function listen(){
-    parts = {};
+    charParts = {};
     const sub = (tag, q) => S.dataSubs.push(onSnapshot(q, snap => {
       const m = new Map(); snap.forEach(d => m.set(d.id, { id: d.id, ...d.data() }));
-      parts[tag] = m; S.chars.clear();
-      Object.values(parts).forEach(p => p.forEach((v, k) => S.chars.set(k, v)));
+      charParts[tag] = m; S.chars.clear();
+      Object.values(charParts).forEach(p => p.forEach((v, k) => S.chars.set(k, v)));
       S.loaded.chars = true; changed();
     }, err => { console.error("characters", err); S.loaded.chars = true; changed(); }));
     if (S.admin) sub("all", collection(db, "characters"));
@@ -79,7 +93,7 @@ export function initChars(ctx){
   }
   let chTimer = null, onChange = () => {};
   function changed(){ clearTimeout(chTimer); chTimer = setTimeout(() => onChange(), 40); }
-  function reset(){ S.chars.clear(); S.library.clear(); parts = {}; }
+  function reset(){ S.chars.clear(); S.library.clear(); charParts = {}; }
 
   // ---------- společné prvky: panel a hod kostkou ----------
   const ovl = document.createElement("div");
@@ -92,30 +106,6 @@ export function initChars(ctx){
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !ovl.hidden) closeOvl(); });
   window.addEventListener("hashchange", closeOvl);
   function openOvl(title, html){ $("#ovlTitle").textContent = title; $("#ovlBody").innerHTML = html; ovl.hidden = false; $("#ovlBody").scrollTop = 0; return $("#ovlBody"); }
-
-  const rollBox = document.createElement("div");
-  rollBox.className = "rollbox"; rollBox.hidden = true; rollBox.setAttribute("role", "status"); rollBox.setAttribute("aria-live", "polite");
-  document.body.appendChild(rollBox);
-  const die = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return 1 + (a[0] % n); };
-  let rollTimer, lastRoll = null;
-  function showRoll(html){ rollBox.innerHTML = html; rollBox.hidden = false; clearTimeout(rollTimer); rollTimer = setTimeout(() => { rollBox.hidden = true; }, 9000); }
-  function rollD20(label, bonus, mode){
-    lastRoll = { label, bonus };
-    const a = die(20), b = die(20), pick = mode === "adv" ? Math.max(a, b) : mode === "dis" ? Math.min(a, b) : a;
-    const tot = pick + bonus, crit = pick === 20 ? " krit" : pick === 1 ? " fail" : "";
-    showRoll(`<div class="rb-main"><span class="rb-label">${esc(label)}${mode ? ` · ${mode === "adv" ? "výhoda" : "nevýhoda"}` : ""}</span>
-      <strong class="rb-total${crit}">${tot}</strong><span class="rb-detail">k20: ${mode ? `${a} a ${b} → ` : ""}${pick} ${sgn(bonus)}</span></div>
-      <div class="rb-act"><button type="button" data-rr="adv">Výhoda</button><button type="button" data-rr="dis">Nevýhoda</button><button type="button" data-rr="x" class="ghost">×</button></div>`);
-    rollBox.querySelectorAll("[data-rr]").forEach(bt => bt.onclick = () => { if (bt.dataset.rr === "x"){ rollBox.hidden = true; return; } rollD20(lastRoll.label, lastRoll.bonus, bt.dataset.rr); });
-  }
-  function rollExpr(label, expr){
-    const m = String(expr || "").replace(/\s/g, "").toLowerCase().replace(/k/g, "d").match(/^(\d*)d(\d+)([+-]\d+)?$/);
-    if (!m) return toast("Zásah zadej ve tvaru 1d8, 2d6 nebo 1d8+3.", "err");
-    const n = num(m[1], 1) || 1, s = num(m[2]), add = num(m[3], 0), rolls = Array.from({ length: Math.min(n, 40) }, () => die(s));
-    const tot = rolls.reduce((x, y) => x + y, 0) + add;
-    showRoll(`<div class="rb-main"><span class="rb-label">${esc(label)}</span><strong class="rb-total">${tot}</strong><span class="rb-detail">${n}k${s}: ${rolls.join(" + ")}${add ? " " + sgn(add) : ""}</span></div><div class="rb-act"><button type="button" class="ghost" id="rbX">×</button></div>`);
-    $("#rbX").onclick = () => { rollBox.hidden = true; };
-  }
 
   // ---------- knihovna ----------
   const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
@@ -368,13 +358,14 @@ export function initChars(ctx){
 
     <section class="card wide"><h2>Vlastnosti</h2>
       <div class="abil-grid">${ABIL.map(([k, n]) => `<div class="abil">
-        <button type="button" class="abil-roll" data-roll="${n}" data-b="${am(C, k)}"><span>${n}</span><strong data-d="mod.${k}">${sgn(am(C, k))}</strong></button>
+        <div class="abil-roll"><span>${n}</span><strong data-d="mod.${k}">${sgn(am(C, k))}</strong></div>
         <div class="abil-in"><input type="number" inputmode="numeric" data-p="base.${k}" data-num value="${num(C.base && C.base[k], 10)}" aria-label="${n} – základ">${num(C.raceBonus && C.raceBonus[k]) ? `<span class="hint" title="bonus rasy">${sgn(num(C.raceBonus[k]))}</span>` : ""}<span class="abil-score" data-d="score.${k}">${score(C, k)}</span></div>
       </div>`).join("")}</div>
       <div class="stat-row">
         <div class="stat"><span>Zdatnostní bonus</span><strong data-d="prof">${sgn(pb)}</strong></div>
-        <button type="button" class="stat" data-roll="Iniciativa" data-b="${am(C, "obr") + num(C.initBonus)}"><span>Iniciativa</span><strong data-d="init">${sgn(am(C, "obr") + num(C.initBonus))}</strong></button>
-        <div class="stat"><span>Rychlost</span><strong data-d="speed">${speed(C)} sáhů</strong>${ld.pen ? `<small>${ld.label}</small>` : ""}</div>
+        <div class="stat"><span>Iniciativa</span><strong data-d="init">${sgn(am(C, "obr") + num(C.initBonus))}</strong><small class="bk" data-d="bk.init">${parts([["Obr", am(C, "obr"), true], ["bonus", num(C.initBonus)]])}</small></div>
+        <div class="stat"><span>Rychlost</span><strong data-d="speed">${speed(C)} sáhů</strong><small class="bk">${ld.pen ? `${num(C.speed, 6)} − ${ld.pen === 99 ? "přetížení" : ld.pen + " (" + ld.label.toLowerCase() + " naložení)"}` : "bez postihu"}</small></div>
+        <div class="stat"><span>Bonus k iniciativě</span><input type="number" inputmode="numeric" data-p="initBonus" data-num value="${num(C.initBonus)}" style="width:4.5em;text-align:center"></div>
         <label class="stat chk-stat"><input type="checkbox" data-p="inspiration"${C.inspiration ? " checked" : ""}><span>Inspirace</span></label>
       </div>
     </section>
@@ -394,16 +385,17 @@ export function initChars(ctx){
       <div class="row death"><span class="lbl">Smrt</span>
         <span class="dots" aria-label="Úspěchy">${[1, 2, 3].map(i => `<button type="button" class="dot ok${num(C.death.s) >= i ? " on" : ""}" data-death="s" data-i="${i}" aria-label="úspěch ${i}">♥</button>`).join("")}</span>
         <span class="dots" aria-label="Neúspěchy">${[1, 2, 3].map(i => `<button type="button" class="dot bad${num(C.death.f) >= i ? " on" : ""}" data-death="f" data-i="${i}" aria-label="neúspěch ${i}">✕</button>`).join("")}</span>
-        <button type="button" class="ghost" id="deathRoll">Hodit záchranu</button></div>
-      <div class="row hd"><span class="lbl">Kostky obnovy</span>${Object.entries(pool).map(([d, n]) => `<span class="pill">k${d}: ${Math.max(0, n - num(C.hdUsed && C.hdUsed[d]))} z ${n}</span>`).join("")}</div>
+</div>
+      <p class="hint">Záchrana proti smrti: hoď k20. 10 a víc úspěch, 1 znamená dva neúspěchy, 20 = postava se probere s 1 BV.</p>
+      <div class="row hd"><span class="lbl">Kostky obnovy</span>${Object.entries(pool).map(([d, n]) => `<span class="pill">k${d}: ${Math.max(0, n - num(C.hdUsed && C.hdUsed[d]))} z ${n}</span>`).join("")}<span class="hint">každá: k + Odl ${sgn(am(C, "odol"))}</span></div>
       <div class="sh-grid">${fld("", "Stavy", inp("conditions", 'placeholder="např. otrávený"'), "wide")}${fld("", "Soustředění na", inp("concentration"), "wide")}</div>
       <div class="row"><button type="button" id="restShort">Krátký odpočinek</button><button type="button" id="restLong">Dlouhý odpočinek</button></div>
     </section>
 
     <section class="card"><h2>Obranné číslo</h2>
       <div class="stat-row">
-        <div class="stat big"><span>OČ</span><strong data-d="ac">${acOf(C, C.armor.type)}</strong></div>
-        <div class="stat"><span>Beze zbroje</span><strong data-d="ac0">${acOf(C, "zadna")}</strong></div>
+        <div class="stat big"><span>OČ</span><strong data-d="ac">${acOf(C, C.armor.type)}</strong><small class="bk" data-d="bk.ac">${parts(acParts(C, C.armor.type))}</small></div>
+        <div class="stat"><span>Beze zbroje</span><strong data-d="ac0">${acOf(C, "zadna")}</strong><small class="bk" data-d="bk.ac0">${parts(acParts(C, "zadna"))}</small></div>
       </div>
       <div class="sh-grid">
         ${fld("", "Zbroj", `<select data-p="armor.type">${[["zadna", "žádná"], ["lehka", "lehká"], ["stredni", "střední (Obr max +2)"], ["tezka", "těžká"]].map(([k, l]) => `<option value="${k}"${C.armor.type === k ? " selected" : ""}>${l}</option>`).join("")}</select>`)}
@@ -415,20 +407,20 @@ export function initChars(ctx){
     </section>
 
     <section class="card"><h2>Záchranné hody</h2>
-      <ul class="skl">${ABIL.map(([k, n]) => `<li><button type="button" class="star${C.saves && C.saves[k] ? " on" : ""}" data-save="${k}" aria-label="zdatnost ${n}">★</button><button type="button" class="skl-name" data-roll="Záchrana: ${n}" data-b="${saveB(C, k)}">${n}</button><strong data-d="save.${k}">${sgn(saveB(C, k))}</strong></li>`).join("")}</ul>
+      <ul class="skl">${ABIL.map(([k, n]) => `<li><button type="button" class="star${C.saves && C.saves[k] ? " on" : ""}" data-save="${k}" aria-label="zdatnost ${n}">★</button><span class="skl-name">${n}<small class="bk" data-d="bk.save.${k}">${parts(saveParts(C, k))}</small></span><strong data-d="save.${k}">${sgn(saveB(C, k))}</strong></li>`).join("")}</ul>
     </section>
 
     <section class="card"><h2>Dovednosti</h2>
       <p class="hint">Hvězdička: jednou zdatnost, dvakrát kvalifikace (dvojnásobný bonus).</p>
-      ${ABIL.map(([a, an]) => { const sk = SKILLS.filter(s => s[2] === a); return sk.length ? `<h3 class="skl-h">${an}</h3><ul class="skl">${sk.map(([k, n]) => `<li><button type="button" class="star s${num(C.skills && C.skills[k])}" data-skill="${k}" aria-label="zdatnost ${n}">★</button><button type="button" class="skl-name" data-roll="${n}" data-b="${skillB(C, k)}">${n}</button><strong data-d="skill.${k}">${sgn(skillB(C, k))}</strong></li>`).join("")}</ul>` : ""; }).join("")}
+      ${ABIL.map(([a, an]) => { const sk = SKILLS.filter(s => s[2] === a); return sk.length ? `<h3 class="skl-h">${an}</h3><ul class="skl">${sk.map(([k, n]) => `<li><button type="button" class="star s${num(C.skills && C.skills[k])}" data-skill="${k}" aria-label="zdatnost ${n}">★</button><span class="skl-name">${n}<small class="bk" data-d="bk.skill.${k}">${parts(skillParts(C, k))}</small></span><strong data-d="skill.${k}">${sgn(skillB(C, k))}</strong></li>`).join("")}</ul>` : ""; }).join("")}
       <h3 class="skl-h">Pasivní</h3>
-      <ul class="skl">${PASSIVE.map(k => `<li><span></span><span class="skl-name">${SKILLS.find(s => s[0] === k)[1]}</span><strong data-d="pas.${k}">${10 + skillB(C, k)}</strong></li>`).join("")}</ul>
+      <ul class="skl">${PASSIVE.map(k => `<li><span></span><span class="skl-name">${SKILLS.find(s => s[0] === k)[1]}<small class="bk" data-d="bk.pas.${k}">10 ${sgn(skillB(C, k))}</small></span><strong data-d="pas.${k}">${10 + skillB(C, k)}</strong></li>`).join("")}</ul>
     </section>
 
     <section class="card"><h2>Zbraně</h2>
       <ul class="wp-list">${(C.weapons || []).map((w, i) => { const b = wpBonus(w); return `<li class="wp">
-        <div class="wp-head"><button type="button" class="wp-roll" data-roll="${esc(w.name || "Útok")}" data-b="${b}"><strong>${esc(w.name || "Zbraň")}</strong><span>${sgn(b)}</span></button>
-          <button type="button" class="wp-dmg" data-dmg="${i}">${esc(wpDmg(w) || "zásah")}</button>
+        <div class="wp-head"><div class="wp-roll"><strong>${esc(w.name || "Zbraň")}</strong><span>útok ${sgn(b)}</span><small class="bk">${parts(wpParts(w))}</small></div>
+          <div class="wp-dmg"><span>zásah</span><strong>${esc(wpDmg(w) || "—")}</strong>${w.dmg ? `<small class="bk">${esc(String(w.dmg).replace(/d/gi, "k"))} + ${SHORT[wpAbKey(w)]} ${sgn(wpAb(w))}</small>` : ""}</div>
           <button type="button" class="ghost" data-wpedit="${i}" aria-expanded="${openWp.has(i)}">${openWp.has(i) ? "Hotovo" : "Upravit"}</button></div>
         <div class="wp-edit" id="wpe${i}"${openWp.has(i) ? "" : " hidden"}><div class="sh-grid">
           ${fld("", "Název", inp(`weapons.${i}.name`))}
@@ -454,8 +446,8 @@ export function initChars(ctx){
     <section class="card"><h2>Kouzla${cm ? " a alchymistická truhla" : ""}</h2>
       <div class="sh-grid">
         ${fld("", "Sesílací vlastnost", `<select data-p="cast.ability"><option value="">—</option>${ABIL.map(([k, n]) => `<option value="${k}"${castAb === k ? " selected" : ""}>${n}</option>`).join("")}</select>`)}
-        <div class="stat"><span>SO záchrany</span><strong data-d="dc">${castAb ? 8 + pb + am(C, castAb) : "—"}</strong></div>
-        <div class="stat"><span>Útočný bonus</span><strong data-d="satk">${castAb ? sgn(pb + am(C, castAb)) : "—"}</strong></div>
+        <div class="stat"><span>SO záchrany</span><strong data-d="dc">${castAb ? 8 + pb + am(C, castAb) : "—"}</strong><small class="bk" data-d="bk.dc">${castAb ? `8 · zdatnost ${sgn(pb)} · ${SHORT[castAb]} ${sgn(am(C, castAb))}` : ""}</small></div>
+        <div class="stat"><span>Útočný bonus</span><strong data-d="satk">${castAb ? sgn(pb + am(C, castAb)) : "—"}</strong><small class="bk" data-d="bk.satk">${castAb ? `zdatnost ${sgn(pb)} · ${SHORT[castAb]} ${sgn(am(C, castAb))}` : ""}</small></div>
       </div>
       ${sl.some(x => x) ? `<div class="slots">${sl.map((n, i) => n ? `<div class="slot-row"><span class="lbl">${i + 1}. stupeň</span>${Array.from({ length: n }, (_, k) => `<button type="button" class="use${k < num(C.cast.used && C.cast.used[i + 1]) ? " spent" : ""}" data-slot="${i + 1}" data-k="${k}" aria-label="pozice ${i + 1}. stupně"></button>`).join("")}</div>` : "").join("")}</div>` : `<p class="hint">Pozice kouzel se objeví, až nastavíš sesílající povolání.</p>`}
       ${pact ? `<div class="slot-row"><span class="lbl">Pakt (${pact.lvl}. st.)</span>${Array.from({ length: pact.n }, (_, k) => `<button type="button" class="use${k < num(C.cast.pactUsed) ? " spent" : ""}" data-pact="${k}" aria-label="pozice paktu"></button>`).join("")}<small class="hint">obnoví krátký odpočinek</small></div>` : ""}
@@ -472,9 +464,11 @@ export function initChars(ctx){
     const need = t === "lehka" ? p.lehke : t === "stredni" ? p.stredni : t === "tezka" ? p.tezke : true;
     return (!need || (C.armor.shield && !p.stity)) ? `<p class="notice warn">Bez zdatnosti v této zbroji nejde sesílat kouzla a hody na Sílu a Obratnost mají nevýhodu.</p>` : "";
   }
-  const wpAb = w => w.abil === "obr" ? am(C, "obr") : w.abil === "vytr" ? Math.max(am(C, "sila"), am(C, "obr")) : am(C, "sila");
+  const wpAbKey = w => w.abil === "obr" ? "obr" : w.abil === "vytr" ? (am(C, "obr") > am(C, "sila") ? "obr" : "sila") : "sila";
+  const wpAb = w => am(C, wpAbKey(w));
   const wpBonus = w => wpAb(w) + (w.prof !== false ? prof(C) : 0) + num(w.extra);
-  const wpDmg = w => w.dmg ? `${w.dmg}${wpAb(w) ? (wpAb(w) > 0 ? "+" : "") + wpAb(w) : ""}` : "";
+  const wpParts = w => [[SHORT[wpAbKey(w)], wpAb(w), true], w.prof !== false ? ["zdatnost", prof(C)] : null, num(w.extra) ? ["navíc", num(w.extra)] : null];
+  const wpDmg = w => w.dmg ? `${String(w.dmg).replace(/d/gi, "k")}${wpAb(w) ? (wpAb(w) > 0 ? "+" : "") + wpAb(w) : ""}` : "";
   function spellsHTML(){
     const sp = (C.spells || []).map((s, i) => ({ ...s, i, lib: s.libId && S.library.get(s.libId) }));
     if (!sp.length) return "";
@@ -524,7 +518,12 @@ export function initChars(ctx){
     set("ac", acOf(C, C.armor.type)); set("ac0", acOf(C, "zadna"));
     set("dc", cab ? 8 + pb + am(C, cab) : "—"); set("satk", cab ? sgn(pb + am(C, cab)) : "—");
     set("bvcur", num(C.bv.cur)); set("bvmax", num(C.bv.max));
-    document.querySelectorAll("[data-roll][data-save-k]").forEach(() => {});
+    ABIL.forEach(([k]) => set("bk.save." + k, parts(saveParts(C, k))));
+    SKILLS.forEach(([k]) => set("bk.skill." + k, parts(skillParts(C, k))));
+    PASSIVE.forEach(k => set("bk.pas." + k, `10 ${sgn(skillB(C, k))}`));
+    set("bk.init", parts([["Obr", am(C, "obr"), true], ["bonus", num(C.initBonus)]]));
+    set("bk.ac", parts(acParts(C, C.armor.type))); set("bk.ac0", parts(acParts(C, "zadna")));
+    set("bk.dc", cab ? `8 · zdatnost ${sgn(pb)} · ${SHORT[cab]} ${sgn(am(C, cab))}` : ""); set("bk.satk", cab ? `zdatnost ${sgn(pb)} · ${SHORT[cab]} ${sgn(am(C, cab))}` : "");
   }
   function bind(v){
     const sheet = $("#sheet");
@@ -543,15 +542,6 @@ export function initChars(ctx){
       });
       if (ev === "input" && structural.test(el.dataset.p)) el.addEventListener("change", () => later(v));
     });
-    // hody
-    sheet.querySelectorAll("[data-roll]").forEach(b => b.addEventListener("click", () => {
-      let bonus = num(b.dataset.b);
-      const sk = b.closest("li") && b.closest("li").querySelector("[data-skill]"), sv = b.closest("li") && b.closest("li").querySelector("[data-save]");
-      if (sk) bonus = skillB(C, sk.dataset.skill); else if (sv) bonus = saveB(C, sv.dataset.save);
-      else { const ab = ABIL.find(a => a[1] === b.dataset.roll); if (ab) bonus = am(C, ab[0]); if (b.dataset.roll === "Iniciativa") bonus = am(C, "obr") + num(C.initBonus); }
-      rollD20(b.dataset.roll, bonus);
-    }));
-    sheet.querySelectorAll("[data-dmg]").forEach(b => b.onclick = () => { const w = C.weapons[+b.dataset.dmg]; rollExpr(`${w.name || "Zbraň"} – zásah`, wpDmg(w)); });
     if (!canEdit()) return;
     // zdatnosti
     sheet.querySelectorAll("[data-save]").forEach(b => b.onclick = () => { C.saves = C.saves || {}; C.saves[b.dataset.save] = !C.saves[b.dataset.save]; b.classList.toggle("on"); save(); refresh(); });
@@ -561,14 +551,6 @@ export function initChars(ctx){
     const bvd = $("#bvDmg"); if (bvd) bvd.onclick = () => { let a = amt(); const t = Math.min(num(C.bv.temp), a); C.bv.temp = num(C.bv.temp) - t; a -= t; C.bv.cur = Math.max(0, num(C.bv.cur) - a); save(); draw(v); };
     const bvh = $("#bvHeal"); if (bvh) bvh.onclick = () => { C.bv.cur = Math.min(num(C.bv.max), num(C.bv.cur) + amt()); if (C.bv.cur > 0) C.death = { s: 0, f: 0 }; save(); draw(v); };
     sheet.querySelectorAll("[data-death]").forEach(b => b.onclick = () => { const k = b.dataset.death, i = +b.dataset.i; C.death[k] = num(C.death[k]) >= i ? i - 1 : i; save(); draw(v); });
-    const dr = $("#deathRoll"); if (dr) dr.onclick = () => {
-      const r = die(20);
-      if (r === 20){ C.bv.cur = 1; C.death = { s: 0, f: 0 }; toast("Přírodní 20: postava se probírá s 1 BV."); }
-      else if (r === 1) C.death.f = Math.min(3, num(C.death.f) + 2);
-      else if (r >= 10) C.death.s = Math.min(3, num(C.death.s) + 1);
-      else C.death.f = Math.min(3, num(C.death.f) + 1);
-      save(); draw(v); showRoll(`<div class="rb-main"><span class="rb-label">Záchrana proti smrti</span><strong class="rb-total${r === 20 ? " krit" : r === 1 ? " fail" : ""}">${r}</strong><span class="rb-detail">${r >= 10 ? "úspěch" : "neúspěch"}</span></div>`);
-    };
     // počítadla
     const toggleUse = (get, setv, k) => { const u = num(get()); setv(k < u ? k : k + 1); save(); draw(v); };
     sheet.querySelectorAll("[data-use]").forEach(b => b.onclick = () => { const f = C.features[+b.dataset.use]; toggleUse(() => f.uses.used, x => { f.uses.used = x; }, +b.dataset.k); });
@@ -647,16 +629,18 @@ export function initChars(ctx){
   }
   function restShort(v){
     const pool = hdPool(C), om = am(C, "odol");
-    const html = () => `<p>Během krátkého odpočinku můžeš utratit kostky obnovy. Každá vrátí hod + oprava Odolnosti (${sgn(om)}).</p>
+    const html = () => `<p>Během krátkého odpočinku můžeš utratit kostky obnovy. Hoď kostkou, zapiš, co padlo, a deník přičte opravu Odolnosti (${sgn(om)}).</p>
       <p><strong>BV: ${num(C.bv.cur)} / ${num(C.bv.max)}</strong></p>
-      <div class="row">${Object.entries(pool).map(([d, n]) => { const left = n - num(C.hdUsed[d]); return `<button type="button" data-hd="${d}"${left > 0 ? "" : " disabled"}>Utratit k${d} (zbývá ${left})</button>`; }).join("")}</div>
+      ${Object.entries(pool).map(([d, n]) => { const left = n - num(C.hdUsed[d]); return `<div class="row nowrap"><span class="lbl" style="min-width:7em">k${d}, zbývá ${left}</span><input type="number" inputmode="numeric" min="1" max="${d}" id="hdv${d}" placeholder="padlo" style="width:5.5em"${left > 0 ? "" : " disabled"} aria-label="Hod na k${d}"><button type="button" data-hd="${d}"${left > 0 ? "" : " disabled"}>Přičíst</button></div>`; }).join("")}
       <p class="hint" id="hdLog"></p>
       <div class="row"><button type="button" class="primary" id="srDone">Dokončit odpočinek</button></div>
       <p class="hint">Dokončení obnoví schopnosti s obnovou za krátký odpočinek a pozice paktu.</p>`;
     const box = openOvl("Krátký odpočinek", html());
     const bindHd = () => {
       box.querySelectorAll("[data-hd]").forEach(b => b.onclick = () => {
-        const d = +b.dataset.hd, r = die(d), g = Math.max(0, r + om);
+        const d = +b.dataset.hd, r = num(box.querySelector("#hdv" + d).value, 0);
+        if (r < 1 || r > d) return toast(`Zadej, co padlo na k${d} (1–${d}).`, "err");
+        const g = Math.max(0, r + om);
         C.hdUsed = C.hdUsed || {}; C.hdUsed[d] = num(C.hdUsed[d]) + 1;
         C.bv.cur = Math.min(num(C.bv.max), num(C.bv.cur) + g); save();
         const log = `k${d}: ${r} ${sgn(om)} = +${g} BV`;
@@ -704,8 +688,8 @@ export function initChars(ctx){
     const box = openOvl(`Postup na úroveň ${level(C) + 1}`, `
       <div class="field"><label for="luCls">Které povolání zvyšuješ</label><select id="luCls">${(C.classes || []).map((c, i) => `<option value="${i}">${esc(c.name || "povolání " + (i + 1))} ${num(c.level)} → ${num(c.level) + 1}</option>`).join("")}<option value="new">Nové povolání (víc povolání)</option></select></div>
       <div id="luNew" hidden class="sh-grid"><div class="field"><label for="luName">Název</label><input type="text" id="luName" list="clsList2"><datalist id="clsList2">${CLASSES.map(c => `<option value="${c[0]}">`).join("")}</datalist></div></div>
-      <p>Přírůstek BV: hod kostkou nebo průměr, plus oprava Odolnosti (${sgn(om)}).</p>
-      <div class="row"><button type="button" id="luRoll">Hodit</button><button type="button" id="luAvg">Průměr</button><strong id="luBv"></strong></div>
+      <p>Přírůstek BV: hoď kostkou povolání a zapiš, co padlo, nebo vezmi průměr. Přičte se oprava Odolnosti (${sgn(om)}).</p>
+      <div class="row"><input type="number" inputmode="numeric" min="1" id="luVal" placeholder="padlo" style="width:5.5em" aria-label="Hod na kostku povolání"><button type="button" id="luRoll">Použít hod</button><button type="button" id="luAvg">Průměr</button><strong id="luBv"></strong></div>
       <p class="hint" id="luAsi"></p>
       <div class="row"><button type="button" class="primary" id="luDo" disabled>Postoupit</button></div>`);
     let gain = null;
@@ -714,7 +698,7 @@ export function initChars(ctx){
     box.querySelector("#luCls").onchange = () => { gain = null; box.querySelector("#luBv").textContent = ""; box.querySelector("#luDo").disabled = true; upd(); };
     box.querySelector("#luName").oninput = upd;
     const setGain = (g, txt) => { gain = Math.max(1, g + om); box.querySelector("#luBv").textContent = `${txt} ${sgn(om)} = +${gain} BV`; box.querySelector("#luDo").disabled = false; };
-    box.querySelector("#luRoll").onclick = () => { const d = cur().hd, r = die(d); setGain(r, `k${d}: ${r}`); };
+    box.querySelector("#luRoll").onclick = () => { const d = cur().hd, r = num(box.querySelector("#luVal").value, 0); if (r < 1 || r > d) return toast(`Zadej, co padlo na k${d} (1–${d}).`, "err"); setGain(r, `k${d}: ${r}`); };
     box.querySelector("#luAvg").onclick = () => { const d = cur().hd, a = d / 2 + 1; setGain(a, `průměr k${d}: ${a}`); };
     box.querySelector("#luDo").onclick = () => {
       const val = box.querySelector("#luCls").value;
