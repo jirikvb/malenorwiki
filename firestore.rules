@@ -60,6 +60,31 @@ service cloud.firestore {
         && resource.data.status == 'open');
     }
 
+    // Deníky postav. Vypravěč vidí a upravuje všechny, hráč své a zveřejněné jen čte.
+    match /characters/{id} {
+      allow read: if isAdmin() || (isMember() && (resource.data.owner == me() || resource.data.public == true));
+      allow create: if isMember() && request.resource.data.owner == me();
+      allow update: if isAdmin() || (isMember() && resource.data.owner == me() && request.resource.data.owner == me());
+      allow delete: if isAdmin() || (isMember() && resource.data.owner == me());
+
+      // Zápisky: soukromé vidí jen autor, zveřejněné všichni členové.
+      match /notes/{nid} {
+        allow read: if isMember() && (resource.data.owner == me() || resource.data.public == true);
+        allow create: if isMember() && request.resource.data.owner == me()
+          && get(/databases/$(database)/documents/characters/$(id)).data.owner == me();
+        allow update: if isMember() && resource.data.owner == me() && request.resource.data.owner == me();
+        allow delete: if isMember() && resource.data.owner == me();
+      }
+    }
+
+    // Knihovna kouzel a schopností. Přidávat může každý člen, upravovat autor a vypravěč.
+    match /library/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && request.resource.data.createdBy == me();
+      allow update: if isAdmin() || (isMember() && resource.data.createdBy == me() && request.resource.data.createdBy == me());
+      allow delete: if isAdmin() || (isMember() && resource.data.createdBy == me());
+    }
+
     // Všechno ostatní je zavřené.
     match /{document=**} {
       allow read, write: if false;

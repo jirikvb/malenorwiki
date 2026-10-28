@@ -3,10 +3,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, query, where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=6";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=6";
+import { firebaseConfig } from "./firebase-config.js?v=7";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=7";
+import { initChars } from "./postavy.js?v=7";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -94,10 +95,14 @@ function linksIn(body){ const out = new Set(); String(body || "").replace(WIKI, 
 function stopSubs(list){ while (list.length) { try { list.pop()(); } catch (e) {} } }
 function stopRoute(){ if (S.routeSub){ try { S.routeSub(); } catch (e) {} S.routeSub = null; } S.routeData = null; }
 
+const CH = initChars({ db, S, $, esc, enc, norm, toast, errText, renderMd, go: h => { location.hash = h; }, route: () => route(), myName, fmtWhen, tsMs,
+  fs: { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch } });
+CH.setOnChange(() => dataChanged());
+
 onAuthStateChanged(auth, user => {
-  stopSubs(S.authSubs); stopSubs(S.dataSubs); stopRoute();
+  stopSubs(S.authSubs); stopSubs(S.dataSubs); stopRoute(); CH.reset();
   for (const k of ["articles", "proposals", "requests", "members"]) S[k].clear();
-  S.loaded = {}; S.titleIndex.clear();
+  S.loaded = {}; S.titleIndex.clear(); S.editing = false; S.dirty = false;
   S.user = user; S.admin = !!user && ADMIN_UIDS.includes(user.uid); S.error = null; S.requested = false;
   if (!user){ S.status = "out"; render(); return; }
   if (S.admin){ becomeMember(); return; }
@@ -124,6 +129,7 @@ function becomeMember(){
   listen("articles", S.articles, rebuildIndex);
   listen("proposals", S.proposals);
   if (S.admin){ listen("requests", S.requests); listen("members", S.members); }
+  CH.listen();
   render();
 }
 function listen(name, map, after){
@@ -190,6 +196,7 @@ function renderChrome(){
     ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
     link("#/osa", "Osa", cur === "osa"),
     link("#/kniha", "Kniha", cur === "kniha"),
+    link("#/deniky", "Deníky", cur === "deniky" || cur === "denik" || cur === "knihovna"),
     link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
     link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
@@ -199,6 +206,7 @@ function renderChrome(){
 
 function renderMain(){
   const v = view();
+  S.editing = false;
   if (S.status === "out") return gateOut(v);
   if (S.status === "loading") { v.innerHTML = `<p class="muted">Načítám…</p>`; return; }
   if (S.status === "pending" || S.status === "error") return gatePending(v);
@@ -218,6 +226,9 @@ function renderMain(){
     case "osa": return timelineView(v, r[1]);
     case "kalendar": return calendarView(v);
     case "kniha": return bookView(v, r[1]);
+    case "deniky": return CH.charsView(v);
+    case "denik": return CH.charView(v, r[1], r[2]);
+    case "knihovna": return CH.libraryView(v);
     case "clenove": return S.admin ? membersView(v) : notFound(v);
     default: return notFound(v);
   }
