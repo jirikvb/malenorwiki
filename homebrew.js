@@ -51,7 +51,10 @@ export const HOMEBREW_FEATURES = [
     summary: "Akcí se proměníš ve vlka (OČ 12 + Obr, rychlost 8, kousnutí 1k8 + Sil se sražením). Cyklů = polovina úrovně, zaokrouhleno nahoru.",
     text: "**Použití.** Můžeš provést počet cyklů proměny rovný polovině své úrovně, zaokrouhleno nahoru (1. úroveň 1 cyklus, 3. úroveň 2, 5. úroveň 3 … 19. úroveň 10). Všechny spotřebované cykly obnovíš po dokončení dlouhého odpočinku. Jeden cyklus znamená proměnu do vlčí podoby a návrat do elfí podoby.\n\n**Proměna.** Proměna do vlčí podoby i návrat do elfí podoby stojí akci. Ve vlčí podobě jsi vlk Střední velikosti.\n\n**Konec proměny.** Vlčí podoba trvá, dokud se akcí nevrátíš do elfí podoby. Automaticky se do ní vrátíš, když klesneš na 0 životů, upadneš do bezvědomí nebo zemřeš. Trans ani přirozený spánek proměnu neukončí. Automatický návrat se počítá jako dokončený cyklus.\n\n**Herní statistiky.** Ve vlčí podobě si zachováváš své životy, hodnoty vlastností, zdatnosti a ostatní herní statistiky, pokud není uvedeno jinak. Obranné číslo: 12 + oprava Obratnosti. Rychlost: 8 sáhů.\n\n**Kousnutí.** Přirozená zbraň, se kterou jsi zdatný. Útok zbraní na blízko, při zásahu 1k8 + oprava Síly bodného zranění. V rámci akce Útok můžeš kousnutím útočit tolikrát, kolikrát ti akce Útok dovoluje. Kousnutí nemá vlastnost jemná, a proto s ním nelze použít Zákeřný útok.\n\n**Sražení.** Jednou za tah, když kousnutím zasáhneš tvora Střední nebo menší velikosti, musí cíl uspět v záchranném hodu na Sílu, jinak je sražen a získá stav ležící. SO = 8 + zdatnostní bonus + oprava Síly.\n\n**Smysly.** Zachováváš si vidění ve tmě a předky z Vílího světa. Máš výhodu na Moudrost (Přežití) a na Moudrost (Vnímání) založenou na sluchu nebo čichu.\n\n**Omezení.** Nemůžeš mluvit, sesílat kouzla ani používat předměty a nástroje. Máš zranitelnost vůči zranění od postříbřených zbraní.\n\n**Soustředění a probíhající účinky.** Proměna nepřeruší tvoje soustředění. Účinky, které na tebe působí, trvají, dokud neskončí nebo nejsou jinak přerušeny.\n\n**Výbava.** Výbava s tebou při proměně nesplyne. Předměty, které držíš, a zbroj spadnou na zem v tvém prostoru. Pokud se proměníš v oblečení nebo ve zbroji, utrpíš 1k6 drtivého zranění a oblečení se poškodí. Zbroj poškozená není." },
   { name: "Odolnost vůči ohni", source: "Elfové Malenoru – Sulatar", summary: "Odolnost vůči ohnivému zranění.", text: "Máš odolnost vůči ohnivému zranění." },
-  { name: "Kovář", source: "Elfové Malenoru – Sulatar", summary: "Zdatnost s kovářským nářadím.", text: "Jsi zdatný s kovářským nářadím." }
+  { name: "Kovář", source: "Elfové Malenoru – Sulatar", summary: "Zdatnost s kovářským nářadím.", text: "Jsi zdatný s kovářským nářadím." },
+  { name: "Žár výhně", source: "Elfové Malenoru – Sulatar", uses: { max: 1, reset: "kratky" },
+    summary: "Bonusovou akcí zahalíš zbraň ohnivou aurou na minutu: jednou za tah při zásahu +1k4 ohnivého zranění (od 5. úr. 2k4, od 11. 3k4, od 17. 4k4).",
+    text: "Bonusovou akcí zahalíš zbraň, kterou držíš v ruce, ohnivou aurou, která vydrží jednu minutu. Jednou za tah při zásahu touto zbraní způsobíš navíc 1k4 ohnivého zranění, od 5. úrovně 2k4, od 11. 3k4, od 17. 4k4. Zbraň po dobu účinku svítí jako pochodeň.\n\nTuto schopnost můžeš použít jednou, poté ji obnovíš po krátkém nebo dlouhém odpočinku." }
 ];
 
 // Rasy s předvolbami. U rodu se uvádí celkový bonus (u Beorů nahrazuje základ, u elfů je v něm základ +2 Obr už započtený).
@@ -78,7 +81,7 @@ export const RACES = [
       { key: "lesni", name: "Lesní elfové", bonus: { obr: 2, mou: 1 }, speed: 7, traits: ["Rychlý krok", "Maska divočiny"] },
       { key: "divoci", name: "Divocí elfové", bonus: { obr: 2, mou: 1 }, traits: ["Řeč zvířat", "Úkryt v lese"] },
       { key: "lythari", name: "Lythari", bonus: { obr: 2, sila: 1 }, traits: ["Vlčí podoba"] },
-      { key: "sulatar", name: "Sulatar", bonus: { obr: 2, odol: 1 }, traits: ["Odolnost vůči ohni", "Kovář"] }
+      { key: "sulatar", name: "Sulatar", bonus: { obr: 2, odol: 1 }, traits: ["Odolnost vůči ohni", "Kovář", "Žár výhně"] }
     ]
   }
 ];

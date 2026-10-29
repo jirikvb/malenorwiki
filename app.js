@@ -5,9 +5,9 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, query, where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=13";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=13";
-import { initChars } from "./postavy.js?v=13";
+import { firebaseConfig } from "./firebase-config.js?v=14";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=14";
+import { initChars } from "./postavy.js?v=14";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
