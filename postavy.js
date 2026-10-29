@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=15";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=16";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -915,15 +915,15 @@ export function initChars(ctx){
   }
   function allRaces(){
     const hbNames = new Set(RACES.map(r => norm(r.name)));
-    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name))).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: true,
+    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name))).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
       lineages: (r.lineages || []).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
     return [...RACES.map(r => ({ ...r, src: "Malenor", allowNone: false })), ...jad];
   }
   const bonusTxt = b => Object.entries(b || {}).filter(([, n]) => num(n)).map(([k, n]) => `${sgn(num(n))} ${SHORT[k]}`).join(", ");
   function racePicker(v){
     const RS = allRaces();
-    const statLine = (r, l) => [bonusTxt(l && l.bonus || r.bonus) || (l && l.bonusNote) || r.bonusNote, `${(l && l.speed) || r.speed} sáhů`, (l && l.darkvision) || r.darkvision ? `vidění ve tmě ${(l && l.darkvision) || r.darkvision} sáhů` : "", l && l.bonusNote && bonusTxt(l.bonus) ? l.bonusNote : ""].filter(Boolean).join(" · ");
-    const box = openOvl("Předvolba rasy a rodu", noRulesNote("rasy") + RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}</small></h3>
+    const statLine = (r, l) => l && l.breath ? `dech: ${l.breath.type}, ${l.breath.area}, záchrana na ${l.breath.save}` : [bonusTxt(l && l.bonus || r.bonus) || (l && l.bonusNote) || r.bonusNote, `${(l && l.speed) || r.speed} sáhů`, (l && l.darkvision) || r.darkvision ? `vidění ve tmě ${(l && l.darkvision) || r.darkvision} sáhů` : "", l && l.bonusNote && bonusTxt(l.bonus) ? l.bonusNote : ""].filter(Boolean).join(" · ");
+    const box = openOvl("Předvolba rasy a rodu", noRulesNote("rasy") + RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}${r.lineageLabel ? " · " + esc(r.lineageLabel) + " · " + esc(bonusTxt(r.bonus)) + ", " + esc(r.speed) + " sáhů" : ""}</small></h3>
         <ul class="pick-list static">${r.allowNone || !r.lineages.length ? `<li><button type="button" data-race="${r.key}" data-lin=""><strong>${r.lineages.length ? "bez rodu" : esc(r.name)}</strong><small>${esc(statLine(r, null))}</small></button></li>` : ""}
         ${r.lineages.map(l => `<li><button type="button" data-race="${r.key}" data-lin="${l.key}"><strong>${esc(l.name)}</strong><small>${esc(statLine(r, l))}</small></button></li>`).join("")}</ul>`).join("")
       + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem, rychlost, jazyky, rasové zdatnosti a rasové schopnosti. Předchozí rasové schopnosti se z deníku odeberou. Všechno jde potom přepsat ručně. U Beorů bonus rodu nahrazuje základní bonus, u elfů Malenoru se k +2 Obr přičítá.</p>`);
@@ -942,7 +942,7 @@ export function initChars(ctx){
         C.features.push(h ? { name: h.name, summary: h.summary || "", text: h.text || "", uses: usesFrom(h.uses), fromRace: true } : { name: tn, summary: "", text: "", uses: null, fromRace: true });
       });
       const dv = (l && l.darkvision) || r.darkvision;
-      C.raceNote = [!bonusTxt(C.raceBonus) && r.bonusNote ? "Doplň bonus: " + r.bonusNote : "", l && l.bonusNote ? "Doplň bonus: " + l.bonusNote : "", r.skillNote ? "Vyber " + r.skillNote : "", l && l.languagesExtra ? "Jazyky: " + l.languagesExtra : "", dv ? `Vidění ve tmě ${dv} sáhů` : "", l && l.hpPerLevel ? `+${l.hpPerLevel} BV za každou úroveň (připočti k maximu)` : "", r.size && r.size !== "Střední" ? "Velikost: " + r.size.toLowerCase() : ""].filter(Boolean).join(" · ");
+      C.raceNote = [l && l.note ? (r.lineageLabel ? r.lineageLabel + " " + l.name + ". " : "") + l.note : "", !bonusTxt(C.raceBonus) && r.bonusNote ? "Doplň bonus: " + r.bonusNote : "", l && l.bonusNote ? "Doplň bonus: " + l.bonusNote : "", r.skillNote ? "Vyber " + r.skillNote : "", l && l.languagesExtra ? "Jazyky: " + l.languagesExtra : "", dv ? `Vidění ve tmě ${dv} sáhů` : "", l && l.hpPerLevel ? `+${l.hpPerLevel} BV za každou úroveň (připočti k maximu)` : "", r.size && r.size !== "Střední" ? "Velikost: " + r.size.toLowerCase() : ""].filter(Boolean).join(" · ");
       save(); closeOvl(); draw(v); toast(`${r.name}${l ? ": " + l.name : ""}.`);
     });
   }
