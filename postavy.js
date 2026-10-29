@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=14";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=15";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -499,7 +499,7 @@ export function initChars(ctx){
         ${fld("", "Jméno postavy", inp("name", 'maxlength="80"'))}
         ${fld("", "Rasa" + off(C.race, raceNames()), `<div class="row nowrap">${inp("race", 'maxlength="60" list="raceList"')}${allRaces().length ? `<button type="button" id="racePick" title="Vybrat rasu s předvolbou bonusů">Předvolba</button>` : ""}</div>`)}
         ${fld("", "Rod" + off(C.lineage, lineageNames(C.race)), inp("lineage", 'maxlength="60" list="linList"'))}
-        ${fld("", "Zázemí" + off(C.background, lists().backgrounds), inp("background", 'maxlength="60" list="bgList"'))}
+        ${fld("", "Zázemí" + off(C.background, lists().backgrounds), `<div class="row nowrap">${inp("background", 'maxlength="60" list="bgList"')}<button type="button" id="bgPick" title="Vybrat zázemí s předvolbou">Předvolba</button></div>`)}
         ${fld("", "Přesvědčení" + off(C.alignment, ALIGN), inp("alignment", 'maxlength="40" list="alList"'))}
       </div>
       ${C.raceNote ? `<p class="hint">${esc(C.raceNote)}</p>` : ""}${bgNote()}
@@ -802,6 +802,7 @@ export function initChars(ctx){
     on("#restShort", () => restShort(v));
     on("#restLong", () => restLong(v));
     on("#racePick", () => racePicker(v));
+    on("#bgPick", () => bgPicker(v));
     on("#lvlStart", () => levelUp(v));
     on("#chDel", () => {
       const card = $("#delCard"); card.querySelector(".row").innerHTML = `<span class="hint">Opravdu smazat „${esc(C.name || "postavu")}“?</span><button type="button" class="danger" id="chDelY">Ano, smazat</button><button type="button" id="chDelN">Ponechat</button>`;
@@ -905,6 +906,13 @@ export function initChars(ctx){
       save(); closeOvl(); draw(v); toast("Dlouhý odpočinek dokončen.");
     };
   }
+  const noRulesNote = what => (R().races || []).length ? "" : `<p class="notice warn">Údaje z pravidel JaD (${what}) ve wiki zatím nejsou. ${S.admin ? "Nahraj je v Knihovně tlačítkem Importovat." : "Vypravěč je musí nahrát v Knihovně."}</p>`;
+  function bgPicker(v){
+    const BG = R().backgrounds || [];
+    const box = openOvl("Předvolba zázemí", noRulesNote("zázemí") + (BG.length ? `<ul class="pick-list static">${BG.map((b, i) => `<li><button type="button" data-bg="${i}"><strong>${esc(b.name)}</strong><small>${esc([(b.skills || []).map(k => SKN[k] || k).join(", "), b.other, b.feature ? "schopnost " + b.feature : "", b.page ? "str. " + b.page : ""].filter(Boolean).join(" · "))}</small></button></li>`).join("")}</ul>
+      <p class="hint">Vybráním se doplní zázemí, zdatnosti v dovednostech a schopnost zázemí. Pomůcky a jazyky zapiš ručně. Předchozí schopnost zázemí se z deníku odebere.</p>` : ""));
+    box.querySelectorAll("[data-bg]").forEach(b => b.onclick = () => { C.background = BG[+b.dataset.bg].name; applyBg(); save(); closeOvl(); draw(v); });
+  }
   function allRaces(){
     const hbNames = new Set(RACES.map(r => norm(r.name)));
     const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name))).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: true,
@@ -915,7 +923,7 @@ export function initChars(ctx){
   function racePicker(v){
     const RS = allRaces();
     const statLine = (r, l) => [bonusTxt(l && l.bonus || r.bonus) || (l && l.bonusNote) || r.bonusNote, `${(l && l.speed) || r.speed} sáhů`, (l && l.darkvision) || r.darkvision ? `vidění ve tmě ${(l && l.darkvision) || r.darkvision} sáhů` : "", l && l.bonusNote && bonusTxt(l.bonus) ? l.bonusNote : ""].filter(Boolean).join(" · ");
-    const box = openOvl("Předvolba rasy a rodu", RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}</small></h3>
+    const box = openOvl("Předvolba rasy a rodu", noRulesNote("rasy") + RS.map(r => `<h3 class="skl-h">${esc(r.name)} <small class="hint">${esc(r.src)}${r.page ? ", str. " + esc(r.page) : ""}</small></h3>
         <ul class="pick-list static">${r.allowNone || !r.lineages.length ? `<li><button type="button" data-race="${r.key}" data-lin=""><strong>${r.lineages.length ? "bez rodu" : esc(r.name)}</strong><small>${esc(statLine(r, null))}</small></button></li>` : ""}
         ${r.lineages.map(l => `<li><button type="button" data-race="${r.key}" data-lin="${l.key}"><strong>${esc(l.name)}</strong><small>${esc(statLine(r, l))}</small></button></li>`).join("")}</ul>`).join("")
       + `<p class="hint">Vybráním se doplní rasa, rod, bonusy k vlastnostem, rychlost, jazyky, rasové zdatnosti a rasové schopnosti. Předchozí rasové schopnosti se z deníku odeberou. Všechno jde potom přepsat ručně. U Beorů bonus rodu nahrazuje základní bonus, u elfů Malenoru se k +2 Obr přičítá.</p>`);
