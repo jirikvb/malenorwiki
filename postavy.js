@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=16";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=17";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -15,14 +15,22 @@ export function initChars(ctx){
   const PASSIVE = ["atletika", "akrobacie", "nenapadnost", "vhled", "vnimani"];
   const CLASSES = [["Alchymista", 8, "none"], ["Barbar", 12, "none"], ["Bard", 8, "full"], ["Bojovník", 10, "none"], ["Čaroděj", 6, "full"], ["Černokněžník", 8, "pact"],
     ["Druid", 8, "full"], ["Hraničář", 10, "half"], ["Klerik", 8, "full"], ["Kouzelník", 6, "full"], ["Lovec netvorů", 10, "none"], ["Mnich", 8, "none"], ["Paladin", 10, "half"], ["Tulák", 8, "none"]];
-  const CASTER = { none: "nesesílá", full: "plný sesilatel", half: "poloviční", third: "třetinový", pact: "magie paktu" };
+  const CASTER = { none: "nesesílá", full: "plný sesilatel", half: "poloviční", third: "třetinový", pact: "magie paktu", pact2: "pakt řádu (lovec)" };
+  // sesílací vlastnosti povolání a sesilatelských oborů (JaD, 5e)
+  const CAST_ABIL = { "bard": "cha", "carodej": "cha", "cernokneznik": "cha", "druid": "mou", "klerik": "mou", "kouzelnik": "int",
+    "hranicar": "mou", "paladin": "cha", "alchymista": "int", "lovec netvoru": "int", "mnich": "mou" };
+  const SUB_CAST = { "theurg": ["third", "int"], "chodec": ["third", "mou"], "chramovy rytir": ["third", "mou"], "svatokupec": ["third", "mou"], "rad zaprodancu": ["pact2", "int"] };
+  const castAbilOf = c => { const k = classInfo(c.name); return (k && k.ability) || CAST_ABIL[norm(c.name)] || ""; };
+  const subCast = c => SUB_CAST[norm(c.sub)] || null;
+  const PACT2 = lv => lv < 3 ? null : { n: lv < 6 ? 1 : 2, lvl: lv < 7 ? 1 : lv < 13 ? 2 : lv < 19 ? 3 : 4 };
   const SCHOOLS = ["Iluze", "Nekromancie", "Očarování", "Transmutace", "Věštění", "Vymítání", "Vyvolávání", "Zaklínání"];
   const FULL = [[], [2], [3], [4, 2], [4, 3], [4, 3, 2], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2, 1], [4, 3, 3, 3, 2, 1],
     [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1], [4, 3, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]];
   const PACT = lv => lv < 1 ? null : { n: lv === 1 ? 1 : lv < 11 ? 2 : lv < 17 ? 3 : 4, lvl: lv < 3 ? 1 : lv < 5 ? 2 : lv < 7 ? 3 : lv < 9 ? 4 : 5 };
   const ASI = [4, 8, 12, 16, 19];
   const ALIGN = ["Zákonné dobro", "Neutrální dobro", "Chaotické dobro", "Zákonná neutralita", "Čistá neutralita", "Chaotická neutralita", "Zákonné zlo", "Neutrální zlo", "Chaotické zlo", "Bez přesvědčení"];
-  const CASTER_WORD = { plny: "full", "plný": "full", polovicni: "half", "poloviční": "half", tretinovy: "third", "třetinový": "third", pakt: "pact", zadne: "none", "žádné": "none", nesesila: "none" };
+  const CASTER_WORD = { plny: "full", "plný": "full", polovicni: "half", "poloviční": "half", tretinovy: "third", "třetinový": "third", pakt: "pact", "pakt radu": "pact2", zadne: "none", "žádné": "none", nesesila: "none" };
+  const ABIL_WORD = { cha: "cha", charisma: "cha", int: "int", inteligence: "int", mou: "mou", mdr: "mou", moudrost: "mou", sil: "sila", sila: "sila", obr: "obr", obratnost: "obr", odl: "odol", odolnost: "odol" };
   const DEFAULT_LISTS = {
     races: [
       { name: "Člověk", lineages: ["Vznešené rody", "Seveřané", "Lesní národy", "Kočovníci"] },
@@ -63,7 +71,7 @@ export function initChars(ctx){
     const row = FULL[Math.min(20, L)] || [];
     return Array.from({ length: 9 }, (_, i) => row[i] || 0);
   }
-  const pactOf = C => { const c = (C.classes || []).find(x => x.caster === "pact"); return c ? PACT(num(c.level)) : null; };
+  const pactOf = C => { const c = (C.classes || []).find(x => x.caster === "pact" || x.caster === "pact2"); return c ? (c.caster === "pact2" ? PACT2(num(c.level)) : PACT(num(c.level))) : null; };
   const chestMax = C => { const c = (C.classes || []).find(x => norm(x.name) === "alchymista"); return c ? num(c.level) : 0; };
   function load(C){
     const a = C.armor || {};
@@ -354,14 +362,14 @@ export function initChars(ctx){
     if (!S.admin){ v.innerHTML = `<p class="muted">Seznamy spravuje vypravěč.</p>`; return; }
     S.editing = true;
     const L = lists();
-    const casterOut = { full: "plný", half: "poloviční", third: "třetinový", pact: "pakt", none: "žádné" };
+    const casterOut = { full: "plný", half: "poloviční", third: "třetinový", pact: "pakt", pact2: "pakt řádu", none: "žádné" };
     v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/deniky">deníky</a></span><h1>Seznamy pro deníky</h1>
         <p class="lede">Z těchto seznamů se hráčům nabízejí hodnoty v deníku. Co v seznamu není, deník označí „mimo seznam“. Malenor má vlastní rasy a rody, takže seznam nemusí odpovídat knize JaD.</p></div>
       <form class="editor" id="lsForm">
         <div class="field"><label for="lsRaces">Rasy a rody: na řádek jedna rasa, za dvojtečku rody oddělené čárkou</label><textarea id="lsRaces" style="min-height:12em">${esc(L.races.map(r => r.name + (r.lineages && r.lineages.length ? ": " + r.lineages.join(", ") : "")).join("\n"))}</textarea></div>
         <div class="row"><button type="button" id="lsHb">Doplnit rasy Malenoru</button><span class="hint">Přidá Beory a elfy Malenoru s jejich rody. Rody, které v Malenoru neplatí, smaž ručně.</span></div>
         <div class="field"><label for="lsBg">Zázemí: na řádek jedno</label><textarea id="lsBg" style="min-height:8em">${esc(L.backgrounds.join("\n"))}</textarea></div>
-        <div class="field"><label for="lsCls">Povolání: název, kostka obnovy, sesílání (plný, poloviční, třetinový, pakt, žádné)</label><textarea id="lsCls" style="min-height:12em">${esc(L.classes.map(c => `${c.name}, k${num(c.hd, 8)}, ${casterOut[c.caster] || "žádné"}`).join("\n"))}</textarea></div>
+        <div class="field"><label for="lsCls">Povolání: název, kostka obnovy, sesílání (plný, poloviční, třetinový, pakt, žádné), sesílací vlastnost (Int, Mdr, Cha)</label><textarea id="lsCls" style="min-height:12em">${esc(L.classes.map(c => { const ab = c.ability || CAST_ABIL[norm(c.name)] || ""; return `${c.name}, k${num(c.hd, 8)}, ${casterOut[c.caster] || "žádné"}${ab ? ", " + SHORT[ab] : ""}`; }).join("\n"))}</textarea><p class="hint">Bojovník, Alchymista, Tulák a Lovec netvorů sesílají jen v některých oborech; deník jim sesílání zapne, až hráč zvolí sesilatelský obor.</p></div>
         <div class="sticky-actions"><button type="submit" class="primary">Uložit seznamy</button><span class="hint" id="lsStatus"></span></div>
       </form>`;
     $("#lsHb").onclick = () => {
@@ -374,7 +382,7 @@ export function initChars(ctx){
       e.preventDefault();
       const lines = id => $(id).value.split("\n").map(x => x.trim()).filter(Boolean);
       const races = lines("#lsRaces").map(l => { const [n, rest] = l.split(":"); return { name: n.trim(), lineages: rest ? rest.split(",").map(x => x.trim()).filter(Boolean) : [] }; });
-      const classes = lines("#lsCls").map(l => { const [n, d, c] = l.split(",").map(x => (x || "").trim()); return { name: n, hd: num(String(d || "").replace(/\D/g, ""), 8) || 8, caster: CASTER_WORD[norm(c || "")] || CASTER_WORD[c] || "none" }; });
+      const classes = lines("#lsCls").map(l => { const [n, d, c, a] = l.split(",").map(x => (x || "").trim()); return { name: n, hd: num(String(d || "").replace(/\D/g, ""), 8) || 8, caster: CASTER_WORD[norm(c || "")] || CASTER_WORD[c] || "none", ability: ABIL_WORD[norm(a || "")] || "" }; });
       try { await setDoc(doc(db, "config", "lists"), { races, backgrounds: lines("#lsBg"), classes, updatedAt: serverTimestamp() }); S.editing = false; toast("Seznamy uloženy."); go("#/deniky"); }
       catch (er){ toast(errText(er), "err"); }
     };
@@ -512,7 +520,7 @@ export function initChars(ctx){
           <div class="field"><label>Obor povolání</label><input type="text" list="subList${i}" data-p="classes.${i}.sub" value="${esc(c.sub || "")}" placeholder="${(ruleClass(c.name) || {}).subclasses ? "od 2.–3. úrovně" : ""}"><datalist id="subList${i}">${((ruleClass(c.name) || {}).subclasses || []).map(n => `<option value="${esc(n)}">`).join("")}</datalist></div>
           <div class="field sm"><label>Úroveň</label><input type="number" inputmode="numeric" min="1" max="20" data-p="classes.${i}.level" data-num value="${num(c.level, 1)}"${S.admin ? "" : " readonly title=\"Úroveň zvyšuje vypravěč přes postup\""}></div>
           <div class="field sm"><label>Kostka</label><select data-p="classes.${i}.hd" data-num>${[6, 8, 10, 12].map(d => `<option value="${d}"${num(c.hd) === d ? " selected" : ""}>k${d}</option>`).join("")}</select></div>
-          <div class="field"><label>Sesílání</label><select data-p="classes.${i}.caster">${Object.entries(CASTER).map(([k, l]) => `<option value="${k}"${c.caster === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+          <div class="field"><label>Sesílání${(subCast(c) || [])[1] || castAbilOf(c) ? ` <small class="hint">${SHORT[(subCast(c) || [])[1] || castAbilOf(c)]}</small>` : ""}</label><select data-p="classes.${i}.caster">${Object.entries(CASTER).map(([k, l]) => `<option value="${k}"${c.caster === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
           ${i > 0 && S.admin ? `<button type="button" class="ghost" data-rmcls="${i}" aria-label="Odebrat povolání">×</button>` : ""}
         </div>`).join("")}</div>
       <datalist id="clsList">${lists().classes.map(c => `<option value="${esc(c.name)}">`).join("")}</datalist>
@@ -658,6 +666,15 @@ export function initChars(ctx){
     toast(`Zázemí ${b.name}: ${(b.skills || []).map(k => SKN[k] || k).join(", ")}${b.feature ? ", " + b.feature : ""}. Ostatní zdatnosti (${b.other}) zapiš ručně.`);
     return true;
   }
+  // sesílání podle povolání a oboru; sesílací vlastnost se doplní, jen když ještě není vybraná
+  function syncCast(i){
+    const c = C.classes[i]; if (!c) return;
+    const sc = subCast(c);
+    if (sc) c.caster = sc[0];
+    const ab = sc ? sc[1] : castAbilOf(c);
+    C.cast = C.cast || {};
+    if (ab && !C.cast.ability && (sc || c.caster !== "none")) C.cast.ability = ab;
+  }
   // první povolání: záchrany, zdatnosti se zbrojí a zbraněmi a schopnosti 1. úrovně
   function applyClassStart(i){
     const c = C.classes[i], rc = ruleClass(c.name); if (!rc) return;
@@ -731,7 +748,7 @@ export function initChars(ctx){
   function bind(v){
     const sheet = $("#sheet");
     if (tab === "zapisky") return notesTab();
-    const structural = /^(race$|lineage$|background$|alignment$|classes\.\d+\.(caster|hd|level|name)|raceBonus\.|armor\.type|armor\.shield|armorProf\.|cast\.ability|backpack|weapons\.\d+\.(abil|prof|dmg|extra|name)|items\.\d+\.slots|base\.|exhaustion)/;
+    const structural = /^(race$|lineage$|background$|alignment$|classes\.\d+\.(caster|hd|level|name|sub)|raceBonus\.|armor\.type|armor\.shield|armorProf\.|cast\.ability|backpack|weapons\.\d+\.(abil|prof|dmg|extra|name)|items\.\d+\.slots|base\.|exhaustion)/;
     sheet.querySelectorAll("[data-p]").forEach(el => {
       const ev = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
       el.addEventListener(ev, () => {
@@ -742,6 +759,7 @@ export function initChars(ctx){
         if (p === "armor.type" && val === "zadna") C.armor.name = "";
         if (/^classes\.\d+\.name$/.test(p)){ const i = +p.split(".")[1], k = classInfo(val); if (k){ C.classes[i].hd = num(k.hd, 8); C.classes[i].caster = k.caster || "none";
           if (ruleClass(val) && !(C.features || []).some(f => f.fromClass && norm(f.fromClass) === norm(val))) applyClassStart(i);
+          syncCast(i);
           save(); return later(v); } }
         save(); refresh();
         if (structural.test(p) && ev === "change") later(v);
@@ -749,6 +767,7 @@ export function initChars(ctx){
       if (ev === "input" && structural.test(el.dataset.p)) el.addEventListener("change", () => {
         const p = el.dataset.p;
         if (p === "background" && canEdit()){ if (applyBg()) save(); }
+        const ms = p.match(/^classes\.(\d+)\.sub$/); if (ms && canEdit()){ syncCast(+ms[1]); save(); }
         later(v);
       });
     });
