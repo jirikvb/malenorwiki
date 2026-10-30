@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=17";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=18";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -533,7 +533,7 @@ export function initChars(ctx){
         <div class="abil-roll"><span>${n}</span><strong data-d="mod.${k}">${sgn(am(C, k))}</strong></div>
         <div class="abil-in"><input type="number" inputmode="numeric" data-p="base.${k}" data-num value="${num(C.base && C.base[k], 10)}" aria-label="${n} – základ">${num(C.raceBonus && C.raceBonus[k]) ? `<span class="hint" title="bonus rasy">${sgn(num(C.raceBonus[k]))}</span>` : ""}<span class="abil-score" data-d="score.${k}">${score(C, k)}</span></div>
       </div>`).join("")}</div>
-      <details class="sl-ovr"><summary>Bonusy z rasy a rodu</summary><div class="when-grid">${ABIL.map(([k, n]) => `<div class="field sm"><label>${SHORT[k]}</label><input type="number" inputmode="numeric" data-p="raceBonus.${k}" data-num value="${num(C.raceBonus && C.raceBonus[k])}"></div>`).join("")}</div></details>
+      <details class="sl-ovr"><summary>Bonusy z rasy a rodu: ${esc(bonusTxt(C.raceBonus) || "žádné")}</summary>${!bonusTxt(C.raceBonus) && C.race ? `<p class="hint">Rasa je zapsaná ručně, bonusy se nedoplnily. Klikni u Rasy na Předvolba, nebo je zapiš sem.</p>` : ""}<div class="when-grid">${ABIL.map(([k, n]) => `<div class="field sm"><label>${SHORT[k]}</label><input type="number" inputmode="numeric" data-p="raceBonus.${k}" data-num value="${num(C.raceBonus && C.raceBonus[k])}"></div>`).join("")}</div></details>
       <div class="stat-row">
         <div class="stat"><span>Zdatnostní bonus</span><strong data-d="prof">${sgn(pb)}</strong></div>
         <div class="stat"><span>Iniciativa</span><strong data-d="init">${sgn(am(C, "obr") + num(C.initBonus))}</strong><small class="bk" data-d="bk.init">${parts([["Obr", am(C, "obr"), true], ["bonus", num(C.initBonus)]])}</small></div>
