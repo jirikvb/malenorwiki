@@ -1,5 +1,5 @@
 // MalenorWiki – deníky postav, výbava, zápisky a knihovna kouzel a schopností (pravidla JaD).
-import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=19";
+import { HOMEBREW_FEATURES, RACES } from "./homebrew.js?v=20";
 
 export function initChars(ctx){
   const { db, S, $, esc, enc, norm, toast, errText, renderMd, go, route, myName, fmtWhen, tsMs, fs } = ctx;
@@ -364,7 +364,7 @@ export function initChars(ctx){
     const L = lists();
     const casterOut = { full: "plný", half: "poloviční", third: "třetinový", pact: "pakt", pact2: "pakt řádu", none: "žádné" };
     v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/deniky">deníky</a></span><h1>Seznamy pro deníky</h1>
-        <p class="lede">Z těchto seznamů se hráčům nabízejí hodnoty v deníku. Co v seznamu není, deník označí „mimo seznam“. Malenor má vlastní rasy a rody, takže seznam nemusí odpovídat knize JaD.</p></div>
+        <p class="lede">Z těchto seznamů se hráčům nabízejí hodnoty v deníku a rasy z pravidel JaD v Předvolbě. Rasu nebo rod, které v Malenoru nejsou, stačí tady smazat. Co v seznamu není, deník označí „mimo seznam“. Malenor má vlastní rasy a rody, takže seznam nemusí odpovídat knize JaD.</p></div>
       <form class="editor" id="lsForm">
         <div class="field"><label for="lsRaces">Rasy a rody: na řádek jedna rasa, za dvojtečku rody oddělené čárkou</label><textarea id="lsRaces" style="min-height:12em">${esc(L.races.map(r => r.name + (r.lineages && r.lineages.length ? ": " + r.lineages.join(", ") : "")).join("\n"))}</textarea></div>
         <div class="row"><button type="button" id="lsHb">Doplnit rasy Malenoru</button><span class="hint">Přidá Beory a elfy Malenoru s jejich rody. Rody, které v Malenoru neplatí, smaž ručně.</span></div>
@@ -935,8 +935,12 @@ export function initChars(ctx){
   }
   function allRaces(){
     const hbNames = new Set(RACES.map(r => norm(r.name)));
-    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name))).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
-      lineages: (r.lineages || []).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
+    // rasy z pravidel se nabízejí jen ty, které má vypravěč v Seznamech pro deníky (a jen jejich rody)
+    const listed = S.config && Array.isArray(S.config.races) && S.config.races.length ? S.config.races : null;
+    const inList = r => !listed || listed.some(x => norm(x.name) === norm(r.name));
+    const linInList = (r, l) => { if (!listed) return true; const x = listed.find(y => norm(y.name) === norm(r.name)); return !x || !(x.lineages || []).length || x.lineages.some(n => norm(n) === norm(l.name)); };
+    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name)) && inList(r)).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
+      lineages: (r.lineages || []).filter(l => linInList(r, l)).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
     return [...RACES.map(r => ({ ...r, src: "Malenor", allowNone: false })), ...jad];
   }
   const bonusTxt = b => Object.entries(b || {}).filter(([, n]) => num(n)).map(([k, n]) => `${sgn(num(n))} ${SHORT[k]}`).join(", ");
