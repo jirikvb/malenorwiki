@@ -1,18 +1,20 @@
-/* MalenorWiki – almanach: velínový podklad, modročerný inkoust, zoxidovaná měď jako akcent, zlato pro svátky a návrhy. */
+/* MalenorWiki – dřevo a pergamen: lišty z tmavého dřeva, pergamenový podklad, duběnkový inkoust, zoxidovaná měď jako akcent, mosaz pro svátky a návrhy. */
 :root{
-  --bg:#e9e4d3;
-  --surface:#f3efe2;
-  --ink:#1c2230;
-  --muted:#5b6070;
-  --rule:#c9c1a8;
+  --bg:#e6d8b5;
+  --surface:#f2e8cc;
+  --ink:#2b2219;
+  --muted:#6b5a44;
+  --rule:#c2aa80;
   --accent:#2c6a60;
-  --accent-ink:#f3efe2;
-  --gold:#9a7424;
-  --danger:#a2433b;
-  --ok:#3d7a45;
+  --accent-ink:#f2e8cc;
+  --gold:#8c6519;
+  --danger:#9c3a2e;
+  --ok:#3d6f3a;
   --ins:#2c6a6026;
-  --del:#a2433b22;
+  --del:#9c3a2e22;
   --sel:#2c6a6018;
+  --wood-hi:#6e4529;--wood:#4b2d19;--wood-dark:#2d1a0d;--wood-edge:#1c1007;--brass:#d9b061;--on-wood:#f3e5c3;--on-wood-mute:#d5bf94;
+  --font-title:"Grenze Gotisch","Cormorant Garamond",Garamond,serif;
   --pd-night:#36425e;--pd-dawn:#c9986a;--pd-morn:#d8c592;--pd-noon:#c3962c;--pd-aft:#9db188;--pd-dusk:#a2646b;
   --font-display:"Cormorant Garamond","Cormorant",Garamond,"Times New Roman",serif;
   --font-body:"Alegreya",Georgia,"Times New Roman",serif;
@@ -21,16 +23,18 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
-    --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
+    --bg:#16110d;--surface:#211a14;--ink:#eadcbc;--muted:#a8977b;--rule:#3b3024;
+    --accent:#7cc0b0;--accent-ink:#16110d;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
+    --wood-hi:#3e2717;--wood:#2a190e;--wood-dark:#170d06;--wood-edge:#0b0603;
     --ins:#7cc0b030;--del:#e0877d2a;--sel:#7cc0b01c;
     --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#10141f;--surface:#171c2a;--ink:#e4ddc8;--muted:#9aa0ad;--rule:#2c3345;
-  --accent:#7cc0b0;--accent-ink:#10141f;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
+  --bg:#16110d;--surface:#211a14;--ink:#eadcbc;--muted:#a8977b;--rule:#3b3024;
+  --accent:#7cc0b0;--accent-ink:#16110d;--gold:#d6b25e;--danger:#e0877d;--ok:#8cc493;
+  --wood-hi:#3e2717;--wood:#2a190e;--wood-dark:#170d06;--wood-edge:#0b0603;
   --ins:#7cc0b030;--del:#e0877d2a;--sel:#7cc0b01c;
   --pd-night:#3b4868;--pd-dawn:#b8895c;--pd-morn:#b4a473;--pd-noon:#d6b25e;--pd-aft:#7e9876;--pd-dusk:#9a5b66;
   color-scheme:dark;
@@ -503,3 +507,97 @@ textarea{min-height:52vh;line-height:1.55;resize:vertical;font-family:var(--font
 .lu-list{list-style:none;margin:0 0 10px;padding:0}
 .lu-list li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--rule)}
 .lu-list .hint{text-align:right;flex:0 1 auto}
+
+/* =====================================================================
+   TÉMA: DŘEVO A PERGAMEN
+   Textury jsou generované SVG šumem (žádné obrázky ke stažení).
+   ===================================================================== */
+:root{
+  --grain:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='180'><filter id='g' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.0028 .085' numOctaves='4' seed='11' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .07  0 0 0 0 .035  0 0 0 0 .01  2.6 0 0 0 -1.15'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");
+  --grain-fine:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='120'><filter id='f' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.012 .75' numOctaves='2' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 .86  0 0 0 0 .62  1.4 0 0 0 -.78'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  --paper-fiber:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  0 0 0 .11 0'/></filter><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
+  --paper-blot:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800'><filter id='b' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.005' numOctaves='3' seed='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .45  0 0 0 0 .3  0 0 0 0 .1  0 0 0 -.9 .42'/></filter><rect width='100%' height='100%' filter='url(%23b)'/></svg>");
+  --wood-bg:var(--grain),var(--grain-fine),linear-gradient(180deg,var(--wood-hi),var(--wood) 42%,var(--wood-dark));
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper-fiber:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .9  0 0 0 0 .8  0 0 0 0 .6  0 0 0 .05 0'/></filter><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
+    --paper-blot:none;
+  }
+}
+:root[data-theme="dark"]{
+  --paper-fiber:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .9  0 0 0 0 .8  0 0 0 0 .6  0 0 0 .05 0'/></filter><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
+  --paper-blot:none;
+}
+
+/* pergamenový podklad */
+body{background-color:var(--bg);background-image:var(--paper-fiber),var(--paper-blot)}
+.card,.sec,.notice,.diff,.ht,.preview,.whenbox,.ovl-panel,.drawer:not([hidden]){background-image:var(--paper-fiber)}
+.sec,.card{box-shadow:0 1px 0 #fff6 inset,0 1px 3px #3a240f22}
+.sec{border-radius:4px}
+.sec strong{font-family:var(--font-title);font-weight:600;font-size:1.45rem;letter-spacing:.01em}
+
+/* nadpisy */
+h1,.gate h1{font-family:var(--font-title);font-weight:600;letter-spacing:.01em}
+.md h1{font-family:var(--font-title)}
+
+/* ---------- dřevěná lišta: hlavička ---------- */
+.top{
+  --ink:var(--on-wood);--muted:var(--on-wood-mute);--rule:#f3e5c32b;--sel:#f3e5c312;--bg:var(--wood-dark);--accent:var(--brass);--accent-ink:#2a180b;
+  background:var(--wood-bg);background-color:var(--wood);color:var(--on-wood);
+  border-bottom:3px solid var(--wood-edge);
+  box-shadow:inset 0 1px 0 #ffffff1c,inset 0 -1px 0 #d9b0614d,0 3px 10px #0006;
+}
+.brand{font-family:var(--font-title);font-weight:700;font-size:1.75rem;letter-spacing:.02em;color:var(--on-wood);
+  text-shadow:0 -1px 0 #000a,0 1px 0 #ffffff26}
+.brand::before{content:"";display:inline-block;width:.62em;height:.62em;margin-right:.32em;vertical-align:.02em;background:var(--brass);
+  clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%);filter:drop-shadow(0 1px 0 #000a)}
+.top .search input{background:#00000042;color:var(--on-wood);border:1px solid var(--wood-edge);box-shadow:inset 0 2px 4px #0007,0 1px 0 #ffffff1a}
+.top .search input::placeholder{color:var(--on-wood-mute);opacity:.8}
+.nav a{color:var(--on-wood-mute);border-color:#f3e5c333;background:#00000026;box-shadow:inset 0 1px 0 #ffffff12}
+.nav a:hover{color:var(--on-wood);border-color:#d9b06199}
+.nav a[aria-current="page"]{background:linear-gradient(180deg,#e9c477,#b98d3c);border-color:#7a5a20;color:#2a180b;box-shadow:inset 0 1px 0 #fff6,0 1px 2px #0006}
+.top .ghost{color:var(--on-wood-mute)}
+.top .ghost:hover{color:var(--on-wood)}
+.top .badge{background:var(--danger);color:#fff}
+@media (min-width:900px){
+  .top .band:not([hidden]){border-top:1px solid #00000059;box-shadow:inset 0 1px 0 #ffffff12}
+  .top .band-line{border-top-color:#f3e5c366}
+}
+
+/* ---------- dřevěná lišta: patička ---------- */
+.foot{max-width:none;margin:0;border-top:3px solid var(--wood-edge);background:var(--wood-bg);background-color:var(--wood);color:var(--on-wood-mute);
+  box-shadow:inset 0 1px 0 #d9b0614d;justify-content:center}
+.foot a{color:var(--on-wood)}
+.foot span{font-family:var(--font-title);font-size:1.1rem;color:var(--on-wood)}
+
+/* svitková lišta pod obsahem editoru */
+.sticky-actions{background:var(--wood-bg);background-color:var(--wood);border-top:3px solid var(--wood-edge);color:var(--on-wood);padding-inline:12px;border-radius:4px 4px 0 0}
+.sticky-actions .hint,.sticky-actions .muted{color:var(--on-wood-mute)}
+
+/* panely: hlavička jako dřevěná lišta */
+.drawer-head,.ovl-head{background:var(--wood-bg);background-color:var(--wood);color:var(--on-wood);border-bottom:3px solid var(--wood-edge)}
+.drawer-head .ghost,.ovl-head .ghost{color:var(--on-wood-mute)}
+.drawer-head .btn{background:#00000026;color:var(--on-wood);border-color:#f3e5c333}
+.ovl-panel{overflow:hidden}
+
+/* tlačítka: trochu „ražená“ */
+button,.btn{box-shadow:0 1px 0 #fff5 inset,0 1px 2px #3a240f26}
+.primary{background:linear-gradient(180deg,#357a6f,var(--accent));box-shadow:0 1px 0 #fff3 inset,0 1px 2px #0004}
+.ghost{box-shadow:none}
+.tabs button,.seg button,.star,.dot,.use,.abil-roll,.ft-name,.pick-list button,.lib-row,.wp-roll,.toolbar button{box-shadow:none}
+
+/* oddělovač s ornamentem pod nadpisem článku */
+.head h1 + .lede{margin-top:2px}
+
+/* ---------- úvodní banner ---------- */
+.hero{position:relative;margin:0;min-height:clamp(190px,34vw,360px);border-radius:4px;overflow:hidden;display:flex;align-items:flex-end;
+  border:3px solid var(--wood-edge);box-shadow:0 0 0 1px #d9b06155 inset,0 4px 14px #3a240f40;
+  background:url("img/banner-1600.webp") 62% 45%/cover no-repeat,linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%)}
+@media (max-width:700px){.hero{background-image:url("img/banner-900.webp"),linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%);background-position:72% 45%,0 0}}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#120a05b3 0%,#120a0566 34%,#0000 62%),linear-gradient(0deg,#120a0599,#0000 45%);pointer-events:none}
+.hero-title{position:relative;z-index:1;padding:clamp(14px,3vw,30px) clamp(16px,3.5vw,36px);display:flex;flex-direction:column;gap:2px;max-width:min(560px,85%)}
+.hero-title .eyebrow{color:#f0d9a6;text-shadow:0 1px 2px #000c}
+.hero-title h1{color:#fbeccb;font-size:clamp(2.5rem,8vw,4.4rem);line-height:.95;text-shadow:0 2px 0 #0009,0 4px 18px #000c}
+.gate .hero{margin-bottom:6px}
+.gate{max-width:640px}

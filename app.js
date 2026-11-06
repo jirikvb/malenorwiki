@@ -5,9 +5,9 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, query, where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=20";
-import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=20";
-import { initChars } from "./postavy.js?v=20";
+import { firebaseConfig } from "./firebase-config.js?v=21";
+import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=21";
+import { initChars } from "./postavy.js?v=21";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
@@ -239,8 +239,7 @@ function notFound(v, msg){ v.innerHTML = `<div class="head"><h1>Tady nic není</
 // --- brána ---
 function gateOut(v){
   v.innerHTML = `<div class="gate">
-    <span class="eyebrow">společná kronika světa</span>
-    <h1>MalenorWiki</h1>
+    <figure class="hero"><div class="hero-title"><span class="eyebrow">společná kronika světa</span><h1>MalenorWiki</h1></div></figure>
     <p class="lede">Bohové, rasy, frakce a místa Malenoru na jednom místě. Čti, piš a navrhuj úpravy. Vypravěč návrhy schvaluje.</p>
     <p><button type="button" class="primary" id="loginBtn">Přihlásit přes Google</button></p>
     <p class="hint">Po prvním přihlášení počkáš, až tě vypravěč pustí dovnitř.</p>
@@ -271,9 +270,8 @@ function home(v){
   const open = [...S.proposals.values()].filter(p => p.status === "open");
   const mine = open.filter(p => p.author === S.user.uid).length;
   v.innerHTML = `
+    <figure class="hero"><div class="hero-title"><span class="eyebrow">společná kronika světa</span><h1>MalenorWiki</h1></div></figure>
     <div class="head">
-      <span class="eyebrow">společná kronika světa</span>
-      <h1>MalenorWiki</h1>
       <p class="lede">Vítej, ${esc((myName()).split(" ")[0])}. ${S.admin
         ? (open.length ? `Čeká na tebe ${open.length} ${plural(open.length, "návrh", "návrhy", "návrhů")}.` : "Žádné návrhy nečekají.")
         : (mine ? `Máš ${mine} ${plural(mine, "otevřený návrh", "otevřené návrhy", "otevřených návrhů")}.` : "Najdi článek, nebo navrhni nový.")}</p>
