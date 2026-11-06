@@ -10,25 +10,33 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@600;700&family=Cormorant+Garamond:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=Alegreya+Sans+SC:wght@500;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
-<script type="module" src="app.js?v=21"></script>
+<script type="module" src="app.js?v=22"></script>
 </head>
 <body>
 <header class="top">
   <div class="top-inner">
+    <button type="button" class="menu-btn" id="menuBtn" hidden aria-label="Otevřít nabídku" aria-controls="menu" aria-expanded="false"><span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span class="badge" id="menuBadge" hidden></span></button>
     <a class="brand" href="#/">MalenorWiki</a>
+    <button type="button" class="cur-title" id="curTitle" hidden aria-controls="menu"></button>
     <form class="search" id="searchForm" role="search" hidden>
       <label class="sr" for="searchInput">Hledat ve wiki</label>
       <input type="search" id="searchInput" placeholder="Hledat…" autocomplete="off">
     </form>
+    <button type="button" class="search-btn" id="searchBtn" hidden aria-label="Hledat"><svg class="ico-search" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><svg class="ico-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <div class="who" id="who"></div>
   </div>
   <nav class="nav" id="nav" aria-label="Sekce" hidden></nav>
   <div class="band" id="band" hidden></div>
 </header>
+<aside class="menu" id="menu" hidden aria-label="Nabídka">
+  <div class="menu-head"><a class="brand" href="#/">MalenorWiki</a><button type="button" class="ghost" id="menuClose">Zavřít</button></div>
+  <nav class="menu-body" id="menuBody" aria-label="Sekce"></nav>
+  <div class="menu-foot" id="menuFoot"></div>
+</aside>
 <button type="button" class="rail" id="rail" hidden aria-label="Otevřít historickou osu" aria-controls="drawer" aria-expanded="false"></button>
 <aside class="drawer" id="drawer" hidden aria-label="Historická osa">
   <div class="drawer-head"><h2>Historická osa</h2><a class="btn" href="#/osa">Celá stránka</a><button type="button" class="ghost" id="drawerClose">Zavřít</button></div>

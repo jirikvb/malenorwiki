@@ -180,12 +180,12 @@ function render(){ renderChrome(); renderMain(); }
 
 function renderChrome(){
   const who = $("#who"), nav = $("#nav"), form = $("#searchForm");
-  if (!S.user || S.status !== "member") hideTimelineChrome();
+  if (!S.user || S.status !== "member"){ hideTimelineChrome(); setMenuChrome(false); }
   if (!S.user){ who.innerHTML = ""; nav.hidden = true; form.hidden = true; return; }
   who.innerHTML = `${S.user.photoURL ? `<img class="avatar" src="${esc(S.user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}<button type="button" class="ghost" id="logoutBtn" title="Odhlásit ${esc(myName())}">Odhlásit</button>`;
   $("#logoutBtn").onclick = logout;
   if (S.status !== "member"){ nav.hidden = true; form.hidden = true; return; }
-  form.hidden = false; nav.hidden = false;
+  form.hidden = false; nav.hidden = false; setMenuChrome(true);
   const r = route(), cur = r[0] || "";
   const curSec = cur === "sekce" ? r[1] : (cur === "clanek" ? (S.articles.get(r[1]) || {}).section : null);
   const open = [...S.proposals.values()].filter(p => p.status === "open").length;
@@ -201,8 +201,85 @@ function renderChrome(){
     link("#/kalendar", "Kalendář", cur === "kalendar"),
     S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
   ].join("");
+  renderMenu(r, cur, curSec, open, reqs, link);
   if (S.loaded.articles) renderTimelineChrome();
 }
+
+// ---------- mobilní nabídka (vysouvací panel zleva) ----------
+const DIARY_ROUTES = ["deniky", "denik", "knihovna", "seznamy"];
+function routeTitle(r, cur, curSec){
+  if (curSec) return sectionOf(curSec).name;
+  return ({ "": "MalenorWiki", osa: "Historická osa", kniha: "Kniha", deniky: "Deníky postav", denik: "Deníky postav", knihovna: "Deníky postav",
+    seznamy: "Deníky postav", navrhy: "Návrhy", navrh: "Návrhy", kalendar: "Kalendář", clenove: "Členové", hledat: "Hledání",
+    historie: "Historie", novy: "Nový článek", upravit: "Úprava článku" })[cur] || "MalenorWiki";
+}
+function renderMenu(r, cur, curSec, open, reqs, link){
+  const kampan = SECTIONS.find(s => s.key === "kampan");
+  const main = SECTIONS.filter(s => s.key !== "kampan");
+  $("#menuBody").innerHTML = `
+    <div class="menu-group">
+      ${link("#/", "Domů", cur === "")}
+      ${main.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)).join("")}
+    </div>
+    <div class="menu-group"><h3>Kampaň</h3>
+      ${kampan ? link("#/sekce/kampan", esc(kampan.name), curSec === "kampan") : ""}
+      ${link("#/kniha", "Kniha", cur === "kniha")}
+      ${link("#/deniky", "Deníky postav", DIARY_ROUTES.includes(cur))}
+      ${link("#/osa", "Historická osa", cur === "osa")}
+      ${link("#/kalendar", "Kalendář", cur === "kalendar")}
+    </div>
+    <div class="menu-group"><h3>Správa</h3>
+      ${link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open)}
+      ${S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""}
+    </div>`;
+  $("#menuFoot").innerHTML = `${S.user.photoURL ? `<img class="avatar" src="${esc(S.user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}<span>${esc(myName())}</span><button type="button" class="ghost" id="menuLogout">Odhlásit</button>`;
+  $("#menuLogout").onclick = () => { closeMenu(); logout(); };
+  const pending = open + (S.admin ? reqs : 0), mb = $("#menuBadge");
+  mb.hidden = !pending; mb.textContent = pending || "";
+  $("#menuBtn").setAttribute("aria-label", pending ? `Otevřít nabídku (${pending} čeká)` : "Otevřít nabídku");
+  $("#curTitle").textContent = routeTitle(r, cur, curSec);
+}
+function setMenuChrome(on){
+  $(".top").classList.toggle("has-menu", on);
+  ["#menuBtn", "#curTitle", "#searchBtn"].forEach(s => { $(s).hidden = !on; });
+  if (!on){ closeMenu(); closeSearch(); }
+}
+function openMenu(){
+  const m = $("#menu"); if (!m.hidden) return;
+  closeDrawer(); closeSearch();
+  m.hidden = false; $("#scrim").hidden = false; $("#menuBtn").setAttribute("aria-expanded", "true");
+  document.body.classList.add("menu-open");
+  history.pushState({ menu: true }, "", location.href);   // systémové Zpět na Androidu nabídku zavře
+  const c = $("#menuBody a[aria-current]"); if (c) c.scrollIntoView({ block: "nearest" });
+}
+function closeMenu(viaHistory){
+  const m = $("#menu"); if (!m || m.hidden) return;
+  m.hidden = true; $("#scrim").hidden = true; $("#menuBtn").setAttribute("aria-expanded", "false");
+  document.body.classList.remove("menu-open");
+  if (!viaHistory && history.state && history.state.menu) history.back();
+}
+function openSearch(){
+  closeMenu();
+  $(".top").classList.add("searching"); $("#searchBtn").setAttribute("aria-label", "Zavřít hledání");
+  searchInput.focus();
+}
+function closeSearch(){
+  const t = $(".top"); if (!t.classList.contains("searching")) return;
+  t.classList.remove("searching"); $("#searchBtn").setAttribute("aria-label", "Hledat");
+}
+$("#menuBtn").addEventListener("click", openMenu);
+$("#curTitle").addEventListener("click", openMenu);
+$("#menuClose").addEventListener("click", () => closeMenu());
+$("#searchBtn").addEventListener("click", () => $(".top").classList.contains("searching") ? closeSearch() : openSearch());
+$("#menu").addEventListener("click", e => {
+  const a = e.target.closest('a[href^="#"]'); if (!a) return;
+  e.preventDefault();
+  const h = a.getAttribute("href"), fromMenuState = history.state && history.state.menu;
+  closeMenu(true);
+  if (fromMenuState) location.replace(h); else location.hash = h;   // položka nabídky nenechá v historii prázdný krok
+});
+window.addEventListener("popstate", () => closeMenu(true));
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ closeMenu(); closeSearch(); } });
 
 function renderMain(){
   const v = view();
@@ -710,7 +787,7 @@ function proposalView(v, id){
 
 // --- vyhledávání ---
 const searchInput = $("#searchInput");
-$("#searchForm").addEventListener("submit", e => { e.preventDefault(); const q = searchInput.value.trim(); if (q) go(`#/hledat/${enc(q)}`); });
+$("#searchForm").addEventListener("submit", e => { e.preventDefault(); const q = searchInput.value.trim(); if (q){ closeSearch(); searchInput.blur(); go(`#/hledat/${enc(q)}`); } });
 function search(q){
   const terms = norm(q).split(" ").filter(Boolean); if (!terms.length) return [];
   const out = [];
@@ -960,11 +1037,12 @@ function closeDrawer(){ const d = $("#drawer"); if (!d || d.hidden) return; d.hi
 function fillDrawer(){ const M = timelineModel(), rel = relatedSet(); $("#drawerBody").innerHTML = verticalTimeline(M, rel, "dage-"); }
 $("#rail").addEventListener("click", openDrawer);
 $("#drawerClose").addEventListener("click", closeDrawer);
-$("#scrim").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", () => { closeDrawer(); closeMenu(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
 new ResizeObserver(() => document.documentElement.style.setProperty("--hdr", $(".top").offsetHeight + "px")).observe($(".top"));
 let wideMq = window.matchMedia("(min-width: 900px)");
 wideMq.addEventListener("change", () => { if (route()[0] === "osa" && !S.editing) renderMain(); });
+wideMq.addEventListener("change", e => { if (e.matches){ closeMenu(); closeSearch(); } });
 
 // editor: datum na ose
 function whenFieldsHTML(w){
