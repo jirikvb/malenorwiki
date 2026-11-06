@@ -593,8 +593,8 @@ button,.btn{box-shadow:0 1px 0 #fff5 inset,0 1px 2px #3a240f26}
 /* ---------- úvodní banner ---------- */
 .hero{position:relative;margin:0;min-height:clamp(190px,34vw,360px);border-radius:4px;overflow:hidden;display:flex;align-items:flex-end;
   border:3px solid var(--wood-edge);box-shadow:0 0 0 1px #d9b06155 inset,0 4px 14px #3a240f40;
-  background:url("img/banner-1600.webp") 62% 0%/cover no-repeat,linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%)}
-@media (max-width:700px){.hero{background-image:url("img/banner-900.webp"),linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%);background-position:72% 0%,0 0}}
+  background:url("img/banner-1600.webp?v=3") 62% 0%/cover no-repeat,linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%)}
+@media (max-width:700px){.hero{background-image:url("img/banner-900.webp?v=3"),linear-gradient(180deg,#2e3550 0%,#7a4a56 38%,#d98a4a 66%,#f1c27a 80%,#5a4a2c 81%,#2a2416 100%);background-position:72% 0%,0 0}}
 .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#120a05b3 0%,#120a0566 34%,#0000 62%),linear-gradient(0deg,#120a0599,#0000 45%);pointer-events:none}
 .hero-title{position:relative;z-index:1;padding:clamp(14px,3vw,30px) clamp(16px,3.5vw,36px);display:flex;flex-direction:column;gap:2px;max-width:min(560px,85%)}
 .hero-title .eyebrow{color:#f0d9a6;text-shadow:0 1px 2px #000c}
