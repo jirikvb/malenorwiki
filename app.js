@@ -191,15 +191,23 @@ function renderChrome(){
   const open = [...S.proposals.values()].filter(p => p.status === "open").length;
   const reqs = S.requests.size;
   const link = (href, label, on, badge) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${label}${badge ? `<span class="badge">${badge}</span>` : ""}</a>`;
+  // počítač: sekce v liště, Kampaň a Správa jako rozbalovací položky
+  const drop = (label, on, badge, items) => `<details class="nav-drop"><summary${on ? ' class="on"' : ""}>${label}${badge ? `<span class="badge">${badge}</span>` : ""}<span class="caret" aria-hidden="true"></span></summary><div class="nav-panel">${items.join("")}</div></details>`;
+  const isDiary = DIARY_ROUTES.includes(cur), isProp = cur === "navrhy" || cur === "navrh";
   nav.innerHTML = [
     link("#/", "Domů", cur === ""),
-    ...SECTIONS.map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
-    link("#/osa", "Osa", cur === "osa"),
-    link("#/kniha", "Kniha", cur === "kniha"),
-    link("#/deniky", "Deníky", cur === "deniky" || cur === "denik" || cur === "knihovna" || cur === "seznamy"),
-    link("#/navrhy", "Návrhy", cur === "navrhy" || cur === "navrh", open),
-    link("#/kalendar", "Kalendář", cur === "kalendar"),
-    S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
+    ...SECTIONS.filter(s => s.key !== "kampan").map(s => link(`#/sekce/${s.key}`, esc(s.name), curSec === s.key)),
+    drop("Kampaň", curSec === "kampan" || isDiary || ["osa", "kniha", "kalendar"].includes(cur), 0, [
+      SECTIONS.some(s => s.key === "kampan") ? link("#/sekce/kampan", esc(sectionOf("kampan").name), curSec === "kampan") : "",
+      link("#/kniha", "Kniha", cur === "kniha"),
+      link("#/deniky", "Deníky postav", isDiary),
+      link("#/osa", "Historická osa", cur === "osa"),
+      link("#/kalendar", "Kalendář", cur === "kalendar")
+    ]),
+    drop("Správa", isProp || cur === "clenove", open + (S.admin ? reqs : 0), [
+      link("#/navrhy", "Návrhy", isProp, open),
+      S.admin ? link("#/clenove", "Členové", cur === "clenove", reqs) : ""
+    ])
   ].join("");
   renderMenu(r, cur, curSec, open, reqs, link);
   if (S.loaded.articles) renderTimelineChrome();
@@ -279,7 +287,21 @@ $("#menu").addEventListener("click", e => {
   if (fromMenuState) location.replace(h); else location.hash = h;   // položka nabídky nenechá v historii prázdný krok
 });
 window.addEventListener("popstate", () => closeMenu(true));
-document.addEventListener("keydown", e => { if (e.key === "Escape"){ closeMenu(); closeSearch(); } });
+
+// rozbalovací položky v liště na počítači (panel je fixed, aby ho neořízla posuvná lišta)
+function closeDrops(except){ document.querySelectorAll("#nav details.nav-drop[open]").forEach(d => { if (d !== except) d.open = false; }); }
+function placeDrop(d){
+  const s = d.querySelector("summary").getBoundingClientRect(), p = d.querySelector(".nav-panel");
+  p.style.top = (s.bottom + 6) + "px";
+  p.style.left = Math.max(8, Math.min(s.left, window.innerWidth - p.offsetWidth - 8)) + "px";
+}
+$("#nav").addEventListener("toggle", e => { const d = e.target; if (d.matches && d.matches("details.nav-drop") && d.open){ closeDrops(d); placeDrop(d); } }, true);
+$("#nav").addEventListener("click", e => { if (e.target.closest(".nav-panel a")) closeDrops(); });
+$("#nav").addEventListener("scroll", () => closeDrops(), { passive: true });
+document.addEventListener("click", e => { if (!e.target.closest("#nav details.nav-drop")) closeDrops(); });
+window.addEventListener("resize", () => closeDrops());
+window.addEventListener("hashchange", () => closeDrops());
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ closeMenu(); closeSearch(); closeDrops(); } });
 
 function renderMain(){
   const v = view();
