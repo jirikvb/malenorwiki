@@ -937,9 +937,12 @@ export function initChars(ctx){
     const hbNames = new Set(RACES.map(r => norm(r.name)));
     // rasy z pravidel se nabízejí jen ty, které má vypravěč v Seznamech pro deníky (a jen jejich rody)
     const listed = S.config && Array.isArray(S.config.races) && S.config.races.length ? S.config.races : null;
-    const inList = r => !listed || listed.some(x => norm(x.name) === norm(r.name));
-    const linInList = (r, l) => { if (!listed) return true; const x = listed.find(y => norm(y.name) === norm(r.name)); return !x || !(x.lineages || []).length || x.lineages.some(n => norm(n) === norm(l.name)); };
-    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name)) && inList(r)).map(r => ({ ...r, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
+    // jiná jména téže rasy (v seznamu může být třeba Hobit místo Půlčíka); v předvolbě se pak ukáže jméno ze seznamu
+    const ALIAS = { pulcik: ["hobit", "hobiti", "pulcici"] };
+    const listName = r => { if (!listed) return null; const names = [norm(r.name), ...(ALIAS[norm(r.name)] || [])]; const x = listed.find(y => names.includes(norm(y.name))); return x ? x.name : null; };
+    const inList = r => !listed || !!listName(r);
+    const linInList = (r, l) => { if (!listed) return true; const n = listName(r); const x = listed.find(y => norm(y.name) === norm(n)); return !x || !(x.lineages || []).length || x.lineages.some(m => norm(m) === norm(l.name)); };
+    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name)) && inList(r)).map(r => ({ ...r, name: listName(r) || r.name, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
       lineages: (r.lineages || []).filter(l => linInList(r, l)).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
     return [...RACES.map(r => ({ ...r, src: "Malenor", allowNone: false })), ...jad];
   }

@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js?v=21";
 import { ADMIN_UIDS, SECTIONS, AGES, CURRENT_YEAR, MONTHS, BOOK } from "./site-config.js?v=21";
-import { initChars } from "./postavy.js?v=21";
+import { initChars } from "./postavy.js?v=26";
 
 // ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
