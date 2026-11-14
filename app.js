@@ -394,6 +394,14 @@ const TEP_DAY = 90000, TEP_KROK = 3000, TEP_DECH = 30;
 const DAY_PARTS = [["Stín / Noc", 0, 6], ["Záhlav", 6, 8], ["Vzestup", 8, 14], ["Pál", 14, 16], ["Sklon", 16, 22], ["Soumrak", 22, 25], ["Stín / Noc", 25, 30]];
 const PART_COLORS = ["var(--pd-night)", "var(--pd-dawn)", "var(--pd-morn)", "var(--pd-noon)", "var(--pd-aft)", "var(--pd-dusk)", "var(--pd-night)"];
 const pad2 = n => String(n).padStart(2, "0");
+// Datum: pozemský den v roce se poměrně přepočte na malenorský rok (1. ledna = 1. Jas, 31. prosince = 30. Stařec).
+const MAL_MONTHS = ["Jas", "Nýnna", "Juron", "Tegal", "Nuros", "Věž", "Kala", "Rigis", "Regis", "Jukton", "Deela", "Stařec"];
+const MAL_SEASONS = ["Mortuun", "Satruun", "Katruun"], MAL_THIRDS = ["kur", "dan", "lon"];
+function malToday(n){
+  const y = n.getFullYear(), idx = Math.round((new Date(y, n.getMonth(), n.getDate()) - new Date(y, 0, 1)) / 864e5);
+  const len = Math.round((new Date(y + 1, 0, 1) - new Date(y, 0, 1)) / 864e5), doy = Math.floor(idx * 360 / len);
+  return `${doy % 30 + 1}. ${MAL_MONTHS[Math.floor(doy / 30)]} · ${MAL_SEASONS[Math.floor(doy / 120)]} ${MAL_THIRDS[Math.floor(doy % 120 / 40)]}`;
+}
 function pol(r, deg){ const a = (deg - 90) * Math.PI / 180; return [(50 + r * Math.cos(a)).toFixed(2), (50 + r * Math.sin(a)).toFixed(2)]; }
 function arc(r0, r1, d0, d1){
   const [a, b] = pol(r1, d0), [c, d] = pol(r1, d1), [e, f] = pol(r0, d1), [g, h] = pol(r0, d0), big = d1 - d0 > 180 ? 1 : 0;
@@ -415,7 +423,7 @@ function clockHTML(){
   const f = faces();
   return `<section class="clockbar" aria-label="Časinka">
     <div class="clk"><svg viewBox="0 0 100 100" aria-hidden="true">${f.earth}</svg><div><span class="lbl">Země</span><strong id="hcEt">--:--:--</strong></div></div>
-    <div class="clk"><svg viewBox="0 0 100 100" aria-hidden="true">${f.mal}</svg><div><span class="lbl">Malenor</span><strong id="hcMt">--:--:--</strong><span class="part" id="hcMp"></span></div></div>
+    <div class="clk"><svg viewBox="0 0 100 100" aria-hidden="true">${f.mal}</svg><div><span class="lbl">Malenor</span><strong id="hcMt">--:--:--</strong><span class="part" id="hcMp"></span><span class="mdate" id="hcMd"></span></div></div>
   </section>`;
 }
 function setRot(id, deg){ const el = document.getElementById(id); if (el) el.setAttribute("transform", `rotate(${deg.toFixed(2)} 50 50)`); }
@@ -430,6 +438,7 @@ function tickClock(){
   document.getElementById("hcMt").textContent = `${pad2(k)}:${pad2(d)}:${pad2(tp)}`;
   const part = DAY_PARTS.find(p => teps / TEP_KROK >= p[1] && teps / TEP_KROK < p[2]);
   document.getElementById("hcMp").textContent = part ? part[0] : "";
+  document.getElementById("hcMd").textContent = malToday(n);
 }
 setInterval(tickClock, 250);
 function plural(n, one, few, many){ return n === 1 ? one : (n >= 2 && n <= 4 ? few : many); }
@@ -1042,7 +1051,7 @@ function calendarView(v){
   S.editing = true; // nepřekreslovat, jinak by se kalendář načítal znovu
   v.innerHTML = `<div class="head"><span class="eyebrow"><a href="#/">MalenorWiki</a></span><h1>Kalendář a Časinka</h1>
     <p class="lede">Převod data, tváře, svátky, fáze dvojčat a malenorský čas.</p></div>
-    <iframe class="cal-frame" id="calFrame" src="kalendar.html?embed=1&amp;v=5" title="Kalendář Malenoru"></iframe>`;
+    <iframe class="cal-frame" id="calFrame" src="kalendar.html?embed=1&amp;v=6" title="Kalendář Malenoru"></iframe>`;
   const f = $("#calFrame");
   const fit = () => { try { const d = f.contentDocument; if (d && d.documentElement) f.style.height = d.documentElement.scrollHeight + "px"; } catch (e) {} };
   f.addEventListener("load", () => {
