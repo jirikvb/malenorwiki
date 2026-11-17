@@ -695,7 +695,7 @@ export function initChars(ctx){
       && String(e.levels || e.level || "").split(",").map(x => num(x)).some(n => upTo ? n <= lvl : n === lvl))
       .sort((a, b) => num(a.level) - num(b.level) || (a.name || "").localeCompare(b.name || "", "cs"));
   }
-  const raceNames = () => lists().races.map(r => r.name);
+  const raceNames = () => { const out = lists().races.map(r => r.name); allRaces().forEach(r => { if (!out.some(n => norm(n) === norm(r.name))) out.push(r.name); }); return out; };
   const lineageNames = race => { const r = lists().races.find(x => norm(x.name) === norm(race)); return r ? (r.lineages || []) : lists().races.flatMap(x => x.lineages || []); };
   const off = (val, list) => val && list.length && !list.some(x => norm(x) === norm(val)) ? ` <span class="pill rejected" title="Není v seznamu vypravěče">mimo seznam</span>` : "";
   const pickerHTML = (id, ph) => `<div class="picker"><input type="search" id="${id}" placeholder="${ph}" autocomplete="off"><ul class="pick-list" id="${id}L" hidden></ul></div>`;
@@ -940,9 +940,11 @@ export function initChars(ctx){
     // jiná jména téže rasy (v seznamu může být třeba Hobit místo Půlčíka); v předvolbě se pak ukáže jméno ze seznamu
     const ALIAS = { pulcik: ["hobit", "hobiti", "pulcici"] };
     const listName = r => { if (!listed) return null; const names = [norm(r.name), ...(ALIAS[norm(r.name)] || [])]; const x = listed.find(y => names.includes(norm(y.name))); return x ? x.name : null; };
-    const inList = r => !listed || !!listName(r);
+    // Malenorská jména ras z pravidel; půlrasy na Malenoru nejsou, ostatní rasy z pravidel se nabízejí vždy
+    const MAL_NAME = { pulcik: "Hobit" }, NO_HALF = new Set(["pulork", "pulelf"]);
+    const inList = r => !NO_HALF.has(norm(r.name));
     const linInList = (r, l) => { if (!listed) return true; const n = listName(r); const x = listed.find(y => norm(y.name) === norm(n)); return !x || !(x.lineages || []).length || x.lineages.some(m => norm(m) === norm(l.name)); };
-    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name)) && inList(r)).map(r => ({ ...r, name: listName(r) || r.name, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
+    const jad = (R().races || []).filter(r => !hbNames.has(norm(r.name)) && inList(r)).map(r => ({ ...r, name: listName(r) || MAL_NAME[norm(r.name)] || r.name, key: "r-" + slug(r.name), src: R().source || "JaD", allowNone: !r.lineageRequired,
       lineages: (r.lineages || []).filter(l => linInList(r, l)).map(l => ({ ...l, key: "l-" + slug(l.name) })) }));
     return [...RACES.map(r => ({ ...r, src: "Malenor", allowNone: false })), ...jad];
   }
